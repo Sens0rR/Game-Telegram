@@ -698,9 +698,25 @@
     border: none; cursor: pointer;
     font-family: inherit; color: #fff;
   }
-  .admin-mini-btn.plus { background: #1e6b2a; }
   .admin-mini-btn.minus { background: #881111; }
   .admin-mini-btn.del { background: #666; }
+  .admin-online {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #3fa04a;
+    box-shadow: 0 0 6px #3fa04a;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .admin-offline {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #444;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
   .admin-close {
     background: linear-gradient(180deg, #cc3333, #881111);
     color: #fff;
@@ -822,6 +838,9 @@
       <div class="admin-stat"><span class="admin-stat-label">Общий баланс</span><span class="admin-stat-value" id="statTotalBalance">—</span></div>
       <div class="admin-stat"><span class="admin-stat-label">Мой баланс</span><span class="admin-stat-value" id="statMyBalance">—</span></div>
       <div class="admin-stat"><span class="admin-stat-label">Джекпот</span><span class="admin-stat-value" id="statJackpot">—</span></div>
+      <div class="admin-row" style="margin-top:8px;">
+        <button class="admin-btn cyan" id="refreshBalanceBtn">🔄 Обновить баланс из облака</button>
+      </div>
     </div>
 
     <div class="admin-section" id="adminPlayers">
@@ -837,13 +856,13 @@
         <button class="admin-btn red" data-action="self-set" data-amount="1000">= 1К</button>
       </div>
 
-      <div class="admin-label">Все игроки (тап = выбрать):</div>
+      <div class="admin-label">Тапни игрока, чтобы выбрать:</div>
       <div id="adminPlayersList" style="max-height:280px;overflow-y:auto;">
         <div style="text-align:center;color:#888;padding:20px;">Загрузка...</div>
       </div>
 
       <div class="admin-label">Выбранный игрок:</div>
-      <input class="admin-input" id="adminSelectedPlayer" placeholder="Не выбран" readonly>
+      <input class="admin-input" id="adminSelectedPlayer" placeholder="Не выбран — тапни игрока выше" readonly>
       <input class="admin-input" id="adminAmountInput" type="number" placeholder="Сумма (может быть минус)">
       <div class="admin-row">
         <button class="admin-btn green" data-action="target-add">+ Сумма</button>
@@ -1034,7 +1053,7 @@ document.addEventListener('DOMContentLoaded', function() {
     spinDuration: 1500,
     reelStagger: 250,
     historyLen: 5,
-    storageKey: 'slot_v22',
+    storageKey: 'slot_v23',
     jackpot: { start: JACKPOT_START, contributionPct: JACKPOT_CONTRIBUTION },
   };
 
@@ -1046,11 +1065,21 @@ document.addEventListener('DOMContentLoaded', function() {
   var player = { id: '', name: 'Игрок', telegramId: null };
   var isAdmin = false;
 
+  // ---------- СОСТОЯНИЕ ----------
+  var state = {
+    balance: CONFIG.bet.start, bet: CONFIG.bet.min, jackpot: CONFIG.jackpot.start,
+    spinning: false, outOfFunds: false, history: [], soundOn: true,
+  };
+
+  var lastSentBalance = -1;
+  var rig = { forceNext: null, globalChance: null };
+
+  // ---------- ИДЕНТИФИКАЦИЯ ----------
   function initPlayerIdentity() {
     try {
       if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
         var u = window.Telegram.WebApp.initDataUnsafe.user;
-        if (u) {
+        if (u && u.id) {
           player.id = 'tg_' + u.id;
           player.telegramId = u.id;
           var name = (u.first_name || '') + (u.last_name ? ' ' + u.last_name : '');
@@ -1061,6 +1090,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     } catch(e) {}
+
+    // Fallback на локальный ID
     try {
       var localId = localStorage.getItem('slot_player_id');
       var localName = localStorage.getItem('slot_player_name');
@@ -1071,16 +1102,16 @@ document.addEventListener('DOMContentLoaded', function() {
       player.id = localId;
       player.name = localName || 'Гость_' + localId.slice(6, 10);
     } catch(e) {
-      player.id = 'anon_' + Date.now();
+      player.id = 'anon_' + Date.now() + Math.random().toString(36).slice(2, 6);
       player.name = 'Аноним';
     }
   }
 
-  var rig = { forceNext: null, globalChance: null };
-
+  // ---------- FIRESTORE: СИНХРОНИЗАЦИЯ ----------
   function checkPendingRig() {
     if (!window.FB || !window.FB.ready) return;
     if (!player.id) return;
+    if (document.hidden) return; // не крутим в фоне
     window.FB.getDoc(window.FB.doc(window.FB.db, 'rigs', player.id)).then(function(snap) {
       if (snap && snap.exists && snap.exists()) {
         var d = snap.data();
@@ -1093,7 +1124,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   setInterval(checkPendingRig, 2500);
 
-  // ⚡ Проверка глобального сброса — ТОЛЬКО один раз за сессию
   var globalResetChecked = false;
   function checkGlobalReset() {
     if (globalResetChecked) return;
@@ -1122,9 +1152,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }).catch(function(){});
   }
 
+  function syncBalanceFromCloud() {
+    if (!window.FB || !window.FB.ready) return;
+    if (!player.id) return;
+    window.FB.getDoc(window.FB.doc(window.FB.db, 'scores', player.id)).then(function(snap) {
+      if (snap && snap.exists && snap.exists()) {
+        var data = snap.data() || {};
+        // Берём currentBalance (актуальный баланс), fallback на maxBalance
+        var cloud = Number(data.currentBalance);
+        if (isNaN(cloud)) cloud = Number(data.maxBalance) || 0;
+        if (cloud > state.balance) {
+          state.balance = cloud;
+          saveStore();
+          updateUI();
+          showToast('💰 Баланс обновлён: ' + fmt(cloud));
+        }
+      }
+    }).catch(function(){});
+  }
+
   function sendScoreToLeaderboard() {
     try {
       if (!window.FB || !window.FB.ready) return;
+      if (!player.id) return;
       var now = Date.now();
       if (sendScoreToLeaderboard._last && now - sendScoreToLeaderboard._last < 5000) return;
       sendScoreToLeaderboard._last = now;
@@ -1146,8 +1196,8 @@ document.addEventListener('DOMContentLoaded', function() {
           playerId: player.id, playerName: player.name,
           maxBalance: newMax, currentBalance: rounded,
           updatedAt: new Date().toISOString(),
-        }).catch(function(err) { console.warn('[Firebase] setDoc error:', err); });
-      }).catch(function(err) { console.warn('[Firebase] read error:', err); });
+        }).catch(function(err) { console.warn('[FB] setDoc error:', err); });
+      }).catch(function(err) { console.warn('[FB] read error:', err); });
     } catch(e) {}
   }
 
@@ -1253,7 +1303,9 @@ document.addEventListener('DOMContentLoaded', function() {
       }).catch(function(){});
   }
 
-  setInterval(function() { if (!state.spinning) loadJackpot(); }, 10000);
+  setInterval(function() {
+    if (!state.spinning && !document.hidden) loadJackpot();
+  }, 10000);
 
   function openLeaderboard() {
     document.getElementById('leaderboardOverlay').classList.add('show');
@@ -1262,10 +1314,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function closeLeaderboard() { document.getElementById('leaderboardOverlay').classList.remove('show'); }
 
-  initPlayerIdentity();
-  setTimeout(checkPendingRig, 1500);
-  setTimeout(checkGlobalReset, 1200);
-
+  // ---------- ИГРОВАЯ ЛОГИКА ----------
   var PAYOUTS3 = {}, PAYOUTS4 = {}, PAYOUTS5 = {};
   CONFIG.symbols.forEach(function(s) {
     PAYOUTS3[s.emoji] = s.pay3;
@@ -1275,13 +1324,6 @@ document.addEventListener('DOMContentLoaded', function() {
   var WEIGHTED = [];
   CONFIG.symbols.forEach(function(s) { for (var i = 0; i < s.weight; i++) WEIGHTED.push(s.emoji); });
   for (var i = 0; i < CONFIG.diamondWeight; i++) WEIGHTED.push(DIAMOND);
-
-  var state = {
-    balance: CONFIG.bet.start, bet: CONFIG.bet.min, jackpot: CONFIG.jackpot.start,
-    spinning: false, outOfFunds: false, history: [], soundOn: true,
-  };
-
-  var lastSentBalance = -1;
 
   function saveStore() {
     try { if (window.localStorage) localStorage.setItem(CONFIG.storageKey, JSON.stringify({
@@ -1950,6 +1992,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var adminTapCount = 0;
   var adminTapTimer = null;
   var rigTargetId = null;
+  var lastAdminClick = 0;
 
   function onLogoTap() {
     if (!isAdmin) return;
@@ -1978,6 +2021,20 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('rigStatus').textContent = rtxt;
     document.getElementById('rigChanceStatus').textContent = (rig.globalChance === null) ? 'По умолчанию' : rig.globalChance + '%';
     document.getElementById('rigTargetInput').value = rigTargetId || 'Я сам';
+    document.getElementById('adminSelectedPlayer').value = rigTargetId || '';
+  }
+
+  function formatTimeAgo(iso) {
+    if (!iso) return '';
+    try {
+      var t = new Date(iso).getTime();
+      if (isNaN(t)) return '';
+      var diff = Date.now() - t;
+      if (diff < 60000) return 'только что';
+      if (diff < 3600000) return Math.floor(diff/60000) + ' мин';
+      if (diff < 86400000) return Math.floor(diff/3600000) + ' ч';
+      return Math.floor(diff/86400000) + ' дн';
+    } catch(e) { return ''; }
   }
 
   function loadAdminPlayers() {
@@ -1987,12 +2044,25 @@ document.addEventListener('DOMContentLoaded', function() {
     window.FB.getDocs(window.FB.collection(window.FB.db, 'scores')).then(function(snap) {
       var list = [];
       var total = 0;
+      var now = Date.now();
       snap.forEach(function(d) {
         var v = d.data() || {};
-        list.push({ id: d.id, name: v.playerName || 'Игрок', balance: Number(v.maxBalance) || 0 });
+        var updated = v.updatedAt ? new Date(v.updatedAt).getTime() : 0;
+        if (isNaN(updated)) updated = 0;
+        var isOnline = updated > 0 && (now - updated) < 120000;
+        list.push({
+          id: d.id,
+          name: v.playerName || 'Игрок',
+          balance: Number(v.maxBalance) || 0,
+          online: isOnline,
+          updatedAt: v.updatedAt || '',
+        });
         total += Number(v.maxBalance) || 0;
       });
-      list.sort(function(a, b) { return b.balance - a.balance; });
+      list.sort(function(a, b) {
+        if (a.online !== b.online) return a.online ? -1 : 1;
+        return b.balance - a.balance;
+      });
       document.getElementById('statPlayers').textContent = list.length;
       document.getElementById('statTotalBalance').textContent = fmt(total);
       if (list.length === 0) { listEl.innerHTML = '<div style="text-align:center;color:#888;padding:10px;">Пусто</div>'; return; }
@@ -2001,14 +2071,15 @@ document.addEventListener('DOMContentLoaded', function() {
         var safeId = String(row.id).replace(/"/g, '&quot;');
         var safeName = String(row.name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
         var sel = (rigTargetId === row.id) ? ' selected' : '';
+        var dot = row.online ? '<span class="admin-online"></span>' : '<span class="admin-offline"></span>';
+        var timeAgo = formatTimeAgo(row.updatedAt);
         html += '<div class="admin-player-row' + sel + '" data-player-id="' + safeId + '">'
           + '<div class="admin-player-info">'
-          + '<div class="admin-player-name">' + safeName + '</div>'
-          + '<div class="admin-player-balance">' + fmt(row.balance) + '</div>'
+          + '<div class="admin-player-name">' + dot + safeName + '</div>'
+          + '<div class="admin-player-balance">' + fmt(row.balance) + (timeAgo ? ' · ' + timeAgo : '') + '</div>'
           + '</div>'
           + '<div class="admin-player-actions">'
-          + '<button class="admin-mini-btn plus" data-select-money="' + safeId + '">💰</button>'
-          + '<button class="admin-mini-btn minus" data-delete="' + safeId + '">🗑</button>'
+          + '<button class="admin-mini-btn del" data-delete="' + safeId + '">🗑</button>'
           + '</div></div>';
       });
       listEl.innerHTML = html;
@@ -2018,16 +2089,10 @@ document.addEventListener('DOMContentLoaded', function() {
           var id = row.getAttribute('data-player-id');
           rigTargetId = id;
           document.getElementById('rigTargetInput').value = id;
+          document.getElementById('adminSelectedPlayer').value = id;
           loadAdminPlayers();
           loadRigPlayers();
-          showToast('Цель: ' + id.slice(0, 12));
-        });
-      });
-      listEl.querySelectorAll('[data-select-money]').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          document.getElementById('adminSelectedPlayer').value = btn.getAttribute('data-select-money');
-          showToast('Выбран для денег');
+          showToast('Выбран: ' + id.slice(0, 12));
         });
       });
       listEl.querySelectorAll('[data-delete]').forEach(function(btn) {
@@ -2073,6 +2138,7 @@ document.addEventListener('DOMContentLoaded', function() {
         row.addEventListener('click', function() {
           rigTargetId = row.getAttribute('data-player-id');
           document.getElementById('rigTargetInput').value = rigTargetId;
+          document.getElementById('adminSelectedPlayer').value = rigTargetId;
           updateAdminStats();
           loadRigPlayers();
           loadAdminPlayers();
@@ -2102,7 +2168,12 @@ document.addEventListener('DOMContentLoaded', function() {
         playerId: id, playerName: name, maxBalance: next,
         currentBalance: next, updatedAt: new Date().toISOString(),
       }).then(function() {
-        showToast('OK: ' + fmt(next));
+        showToast((id === player.id ? 'Себе ' : 'Игроку ') + 'OK: ' + fmt(next));
+        if (id === player.id) {
+          state.balance = next;
+          saveStore();
+          updateUI();
+        }
         loadAdminPlayers();
       }).catch(function(err) { showToast('Ошибка: ' + err.message); });
     });
@@ -2121,7 +2192,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }).catch(function(){});
   }
 
-  // ⚡ ПОЛНОЕ ОБНУЛЕНИЕ ЛИДЕРБОРДА + ЛОКАЛЬНЫХ БАЛАНСОВ
   function resetLeaderboard() {
     if (!window.FB || !window.FB.ready) return;
     var resetTime = Date.now();
@@ -2172,15 +2242,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // ✅ Убрать флаг сброса (важно после того, как все обнулились)
   function clearResetFlag() {
     if (!window.FB || !window.FB.ready) return;
     window.FB.deleteDoc(window.FB.doc(window.FB.db, 'global', 'resetFlag'))
-      .then(function() {
-        showToast('✅ Флаг сброса удалён');
-      }).catch(function() {
-        showToast('Флаг уже отсутствует');
-      });
+      .then(function() { showToast('✅ Флаг сброса удалён'); })
+      .catch(function() { showToast('Флаг уже отсутствует'); });
   }
 
   function setRigForTarget(force) {
@@ -2216,10 +2282,18 @@ document.addEventListener('DOMContentLoaded', function() {
       .catch(function(){});
   }
 
+  function debounceAdmin(fn) {
+    return function(e) {
+      var now = Date.now();
+      if (now - lastAdminClick < 300) return;
+      lastAdminClick = now;
+      fn(e);
+    };
+  }
+
   // ---------- ПРИВЯЗКА ВСЕХ ОБРАБОТЧИКОВ ----------
   document.getElementById('titleLogo').addEventListener('click', onLogoTap);
   document.getElementById('adminCloseX').addEventListener('click', closeAdmin);
-  document.getElementById('adminClose').addEventListener('click', closeAdmin);
   document.getElementById('adminOverlay').addEventListener('click', function(e) {
     if (e.target === this) closeAdmin();
   });
@@ -2239,39 +2313,45 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  document.getElementById('rigWin').addEventListener('click', function() { setRigForTarget('win'); });
-  document.getElementById('rigLose').addEventListener('click', function() { setRigForTarget('lose'); });
-  document.getElementById('rigJackpot').addEventListener('click', function() { setRigForTarget('jackpot'); });
-  document.getElementById('rigClear').addEventListener('click', clearRigForTarget);
-  document.getElementById('rigChanceSet').addEventListener('click', function() {
+  document.getElementById('adminClose').addEventListener('click', closeAdmin);
+  document.getElementById('refreshBalanceBtn').addEventListener('click', debounceAdmin(function() {
+    syncBalanceFromCloud();
+    setTimeout(function() { updateAdminStats(); }, 1000);
+  }));
+
+  document.getElementById('rigWin').addEventListener('click', debounceAdmin(function() { setRigForTarget('win'); }));
+  document.getElementById('rigLose').addEventListener('click', debounceAdmin(function() { setRigForTarget('lose'); }));
+  document.getElementById('rigJackpot').addEventListener('click', debounceAdmin(function() { setRigForTarget('jackpot'); }));
+  document.getElementById('rigClear').addEventListener('click', debounceAdmin(clearRigForTarget));
+  document.getElementById('rigChanceSet').addEventListener('click', debounceAdmin(function() {
     var v = parseInt(document.getElementById('rigChanceInput').value, 10);
     if (isNaN(v) || v < 0 || v > 100) { showToast('0-100'); return; }
     rig.globalChance = v;
     updateAdminStats();
     showToast('Шанс: ' + v + '%');
-  });
-  document.getElementById('rigChanceClear').addEventListener('click', function() {
+  }));
+  document.getElementById('rigChanceClear').addEventListener('click', debounceAdmin(function() {
     rig.globalChance = null;
     updateAdminStats();
     showToast('Сброшено');
-  });
+  }));
 
-  document.getElementById('adminJackpotSetBtn').addEventListener('click', function() {
+  document.getElementById('adminJackpotSetBtn').addEventListener('click', debounceAdmin(function() {
     var v = parseInt(document.getElementById('adminJackpotInput').value, 10);
     if (isNaN(v)) { showToast('Введи число'); return; }
     setJackpotValue(v);
-  });
+  }));
 
-  document.querySelector('[data-action="target-add"]').addEventListener('click', function() {
+  document.querySelector('[data-action="target-add"]').addEventListener('click', debounceAdmin(function() {
     var amt = parseInt(document.getElementById('adminAmountInput').value, 10);
     if (isNaN(amt)) { showToast('Введи сумму'); return; }
     applyToTargetPlayer(amt, false);
-  });
-  document.querySelector('[data-action="target-set"]').addEventListener('click', function() {
+  }));
+  document.querySelector('[data-action="target-set"]').addEventListener('click', debounceAdmin(function() {
     var amt = parseInt(document.getElementById('adminAmountInput').value, 10);
     if (isNaN(amt)) { showToast('Введи сумму'); return; }
     applyToTargetPlayer(amt, true);
-  });
+  }));
 
   document.addEventListener('click', function(e) {
     if (!isAdmin) return;
@@ -2297,26 +2377,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  document.getElementById('dangerResetLeaderboard').addEventListener('click', function() {
+  document.getElementById('dangerResetLeaderboard').addEventListener('click', debounceAdmin(function() {
     if (!confirm('ПОЛНОЕ ОБНУЛЕНИЕ?\n\nВсе игроки потеряют свой баланс (станет 1000 ₽) и таблица лидерборда очистится. Продолжить?')) return;
     resetLeaderboard();
-  });
-  document.getElementById('dangerClearKeepMe').addEventListener('click', function() {
+  }));
+  document.getElementById('dangerClearKeepMe').addEventListener('click', debounceAdmin(function() {
     if (!confirm('Удалить всех, кроме тебя?')) return;
     clearAllPlayers(true);
-  });
-  document.getElementById('dangerClearAll').addEventListener('click', function() {
+  }));
+  document.getElementById('dangerClearAll').addEventListener('click', debounceAdmin(function() {
     if (!confirm('Удалить ВСЕХ игроков?')) return;
     clearAllPlayers(false);
-  });
-  document.getElementById('dangerClearResetFlag').addEventListener('click', function() {
+  }));
+  document.getElementById('dangerClearResetFlag').addEventListener('click', debounceAdmin(function() {
     clearResetFlag();
-  });
-  document.getElementById('dangerResetJackpot').addEventListener('click', function() {
+  }));
+  document.getElementById('dangerResetJackpot').addEventListener('click', debounceAdmin(function() {
     if (!confirm('Сбросить джекпот к 1М?')) return;
     setJackpotValue(JACKPOT_START);
-  });
-  document.getElementById('dangerResetMyStats').addEventListener('click', function() {
+  }));
+  document.getElementById('dangerResetMyStats').addEventListener('click', debounceAdmin(function() {
     if (!confirm('Обнулить свой прогресс?')) return;
     state.balance = CONFIG.bet.start;
     state.bet = CONFIG.bet.min;
@@ -2326,7 +2406,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.FB.deleteDoc(window.FB.doc(window.FB.db, 'scores', player.id))
       .then(function() { showToast('Обнулено'); loadAdminPlayers(); })
       .catch(function(){});
-  });
+  }));
 
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
@@ -2355,23 +2435,41 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('leaderboardClose').addEventListener('click', closeLeaderboard);
   document.getElementById('leaderboardOverlay').addEventListener('click', function(e) { if (e.target === this) closeLeaderboard(); });
 
+  // ---------- ИНИЦИАЛИЗАЦИЯ (правильный порядок!) ----------
+  initPlayerIdentity();
   try { loadStore(); } catch(e) {}
+
   try {
     for (var r = 0; r < REELS_COUNT; r++) {
       for (var row = 0; row < ROWS; row++) setCell(r, row, rndEmoji());
     }
   } catch(e) {}
   try { renderHistory(); } catch(e) {}
+
   el.soundToggle.classList.toggle('off', !state.soundOn);
   el.soundToggle.textContent = state.soundOn ? '🔊' : '🔇';
   updateJackpotUI();
   updateUI();
+
+  // Отложенные синхронизации — только ПОСЛЕ loadStore()
+  setTimeout(checkGlobalReset, 1200);
   setTimeout(sendScoreToLeaderboard, 2000);
   setTimeout(loadJackpot, 1500);
+  setTimeout(syncBalanceFromCloud, 1800);
+  setTimeout(checkPendingRig, 1500);
+
   document.addEventListener('touchstart', function unlock() {
     try { ensureAudio(); } catch(e) {}
     document.removeEventListener('touchstart', unlock);
   }, { once: true, passive: true });
+
+  // При возврате в игру — синхронизируем баланс
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+      setTimeout(syncBalanceFromCloud, 500);
+      setTimeout(checkPendingRig, 800);
+    }
+  });
 
 });
 </script>
