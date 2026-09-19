@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0a">
+<title>Слот — Фрукты</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif;
+    background: radial-gradient(circle at 50% 0%, #1a1030 0%, #080812 70%);
+    color: #fff;
+    overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
+  body {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: max(6px, env(safe-area-inset-top)) 8px max(6px, env(safe-area-inset-bottom));
+    min-height: 100vh; min-height: 100dvh;
+    gap: 6px;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; max-width: 480px; padding: 0 4px;
+    gap: 6px;
+  }
+  .title {
+    font-size: 18px; margin: 0; flex: 1;
+    background: linear-gradient(90deg, #d4af37, #fff8b0, #d4af37);
+    background-size: 200% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 2px; font-weight: 900;
+    text-transform: uppercase;
+  }
+  .header-btn {
+    background: rgba(180,140,60,0.15);
+    border: 1px solid rgba(180,140,60,0.55);
+    color: #d4af37;
+    border-radius: 10px;
+    width: 38px; height: 38px;
+    font-size: 17px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.2s;
+  }
+  .header-btn:active { transform: scale(0.92); background: rgba(180,140,60,0.35); }
+  .header-btn.off { opacity: 0.45; }
+
+  .jackpot-bar {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px;
+    width: 100%; max-width: 480px;
+    background: linear-gradient(90deg, #2a1420, #4a2438, #2a1420);
+    border: 2px solid #d4af37;
+    border-radius: 12px;
+    padding: 8px 12px;
+    box-shadow: 0 0 20px rgba(212,175,55,0.5);
+  }
+  .jackpot-label {
+    font-size: 12px; font-weight: 800;
+    color: #ffd700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    white-space: nowrap;
+  }
+  .jackpot-value {
+    font-size: 22px; font-weight: 900;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 12px rgba(255,215,0,0.9);
+    letter-spacing: 0.5px;
+  }
+
+  .machine {
+    background: linear-gradient(180deg, #1c1830, #0c0a1c);
+    border: 2px solid #6b5520;
+    border-radius: 18px;
+    padding: 12px;
+    box-shadow: 0 0 40px rgba(180,140,60,0.25);
+    width: 100%; max-width: 480px;
+    position: relative;
+  }
+  .machine.shake { animation: shake 0.4s ease-out 2; }
+  .machine.mega-shake { animation: megaShake 0.6s ease-out 6; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-4px) rotate(-0.5deg); }
+    40% { transform: translateX(4px) rotate(0.5deg); }
+    60% { transform: translateX(-3px) rotate(-0.3deg); }
+    80% { transform: translateX(3px) rotate(0.3deg); }
+  }
+  @keyframes megaShake {
+    0%,100% { transform: translateX(0) rotate(0); }
+    15% { transform: translateX(-8px) rotate(-1.5deg); }
+    35% { transform: translateX(8px) rotate(1.5deg); }
+    55% { transform: translateX(-6px) rotate(-1deg); }
+    75% { transform: translateX(6px) rotate(1deg); }
+  }
+
+  .win-popup {
+    position: absolute; top: 40px; left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, #ffd700, #b8860b);
+    color: #1a1030;
+    font-size: 22px; font-weight: 900;
+    padding: 8px 20px; border-radius: 12px;
+    border: 2px solid #fff8b0;
+    box-shadow: 0 10px 40px rgba(255,215,0,0.9);
+    opacity: 0; pointer-events: none; z-index: 20;
+    white-space: nowrap;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .win-popup.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-10px) scale(1.05);
+  }
+
+  .info {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 6px; margin-bottom: 8px; font-size: 14px;
+  }
+  .info-group {
+    display: flex; align-items: center; gap: 6px;
+    background: linear-gradient(180deg, #2a2440, #1a1628);
+    border: 1px solid #6b5520;
+    padding: 5px 8px; border-radius: 8px;
+    font-weight: 700;
+  }
+  .info-group .label { color: #d4af37; font-size: 12px; }
+  .info-group .value {
+    color: #fff; min-width: 60px; text-align: center;
+    font-variant-numeric: tabular-nums; font-size: 14px;
+  }
+  .add-btn {
+    background: linear-gradient(180deg, #3fa04a, #1e6b2a);
+    color: #fff; border: 1px solid #2a8035;
+    border-radius: 5px;
+    padding: 5px 8px; font-size: 12px; font-weight: 800;
+    font-family: inherit; line-height: 1;
+    cursor: pointer;
+  }
+  .add-btn:disabled { opacity: 0.35; }
+
+  .bet-panel {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    justify-content: center;
+  }
+  .bet-op {
+    flex: 1;
+    background: linear-gradient(180deg, #3a3454, #242040);
+    color: #d4af37;
+    border: 1px solid #4a4468;
+    border-radius: 6px;
+    padding: 6px 0;
+    font-size: 12px;
+    font-weight: 900;
+    font-family: inherit;
+    cursor: pointer;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .bet-op:active:not(:disabled) { transform: translateY(2px); }
+  .bet-op:disabled { opacity: 0.3; }
+  .bet-op.add {
+    background: linear-gradient(180deg, #4a3850, #2a2038);
+    color: #88ddff;
+  }
+
+  .reels {
+    display: flex; gap: 4px; justify-content: center;
+    background: #05050a;
+    border-radius: 10px;
+    border: 1px solid #2a2440;
+    padding: 8px;
+    box-shadow: inset 0 0 30px rgba(0,0,0,1);
+    position: relative;
+    margin-bottom: 8px;
+  }
+  .reel {
+    width: 62px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .cell {
+    width: 62px;
+    height: 60px;
+    background: linear-gradient(180deg, #0e0c1a 0%, #05050a 100%);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    line-height: 1;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.6);
+    user-select: none;
+    position: relative;
+    z-index: 1;
+    transition: transform 0.08s;
+  }
+  .cell.spinning { animation: cellShake 0.08s linear infinite; }
+  @keyframes cellShake {
+    0%   { transform: translateY(0);   opacity: 1; }
+    50%  { transform: translateY(-3px); opacity: 0.6; }
+    100% { transform: translateY(0);   opacity: 1; }
+  }
+  .cell.hit {
+    background: radial-gradient(circle, rgba(255,215,0,0.45), rgba(255,215,0,0.05) 70%);
+    box-shadow: inset 0 0 20px rgba(255,215,0,0.7), 0 0 15px #ffd700;
+    animation: hitPulse 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes hitPulse {
+    0%   { box-shadow: inset 0 0 20px rgba(255,215,0,0.7), 0 0 15px #ffd700; }
+    100% { box-shadow: inset 0 0 25px rgba(255,215,0,1), 0 0 25px #ffd700; }
+  }
+  .cell.diamond { filter: drop-shadow(0 0 6px #00ffff) drop-shadow(0 0 12px #00ffff); }
+
+  .lightning-svg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 5;
+    overflow: visible;
+  }
+  .lightning-svg path {
+    fill: none;
+    stroke: #fff8b0;
+    stroke-width: 4;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 6px #ffd700) drop-shadow(0 0 12px #ffd700) drop-shadow(0 0 24px #ff8c00);
+    animation: lightningFlicker 0.15s linear infinite;
+  }
+  @keyframes lightningFlicker {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.75; }
+  }
+
+  .message {
+    text-align: center; height: 26px;
+    font-size: 15px; font-weight: 800;
+    margin-bottom: 8px; color: #d4af37;
+    display: flex; align-items: center; justify-content: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: color 0.2s;
+  }
+  .message.win {
+    color: #ffd700;
+    text-shadow: 0 0 14px rgba(255,215,0,1);
+  }
+  .message.jackpot {
+    color: #00ffff;
+    text-shadow: 0 0 14px #00ffff, 0 0 28px #ffd700;
+  }
+
+  .buttons { display: flex; gap: 8px; }
+  button.main {
+    flex: 1;
+    padding: 14px;
+    font-size: 17px; font-weight: 900;
+    border: none; border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    touch-action: manipulation;
+    color: #fff;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  button.main:active:not(:disabled) { transform: scale(0.96); }
+  button.main:disabled { opacity: 0.4; }
+  #spinBtn {
+    background: linear-gradient(180deg, #b08838, #7a5a1f);
+    border: 2px solid #d4af37;
+    box-shadow: 0 5px 0 #4a3510;
+    flex: 2;
+  }
+  #resetBtn {
+    background: linear-gradient(180deg, #3a3454, #242040);
+    color: #d4af37;
+    border: 2px solid #4a4468;
+    box-shadow: 0 5px 0 #14102a;
+  }
+
+  .history {
+    display: flex; justify-content: center; gap: 6px;
+    margin-top: 8px; height: 12px;
+  }
+  .history-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #2a2440;
+    border: 1px solid #3a3454;
+  }
+  .history-dot.win { background: #3fa04a; }
+  .history-dot.big { background: #d4af37; transform: scale(1.2); }
+  .history-dot.jackpot { background: #00ffff; transform: scale(1.35); }
+  .history-dot.miss { background: #c03030; }
+
+  .paytable {
+    margin-top: 8px; font-size: 10px;
+    text-align: center; color: #888; line-height: 1.45;
+  }
+  .paytable b { color: #d4af37; }
+
+  .gold-rain {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    overflow: hidden;
+    display: none;
+  }
+  .gold-rain.show { display: block; }
+  .gold-rain .coin {
+    position: absolute; top: -30px;
+    font-size: 26px;
+    animation: coinFall linear forwards;
+  }
+  @keyframes coinFall {
+    0% { transform: translateY(-30px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0.7; }
+  }
+
+  .captcha-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .captcha-overlay.show { display: flex; }
+  .captcha-box {
+    background: linear-gradient(180deg, #1c1830, #0c0a1c);
+    border: 2px solid #d4af37;
+    border-radius: 16px;
+    padding: 22px 20px;
+    box-shadow: 0 0 60px rgba(212,175,55,0.6);
+    max-width: 340px;
+    width: 100%;
+    text-align: center;
+    animation: captchaPop 0.3s cubic-bezier(0.2, 1.4, 0.5, 1);
+  }
+  @keyframes captchaPop {
+    0% { transform: scale(0.7); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .captcha-title {
+    font-size: 13px;
+    color: #d4af37;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    font-weight: 800;
+  }
+  .captcha-prize {
+    font-size: 26px;
+    color: #3fa04a;
+    font-weight: 900;
+    margin-bottom: 16px;
+    text-shadow: 0 0 14px rgba(63,160,74,0.8);
+  }
+  .captcha-question {
+    font-size: 28px;
+    font-weight: 900;
+    color: #fff;
+    margin-bottom: 14px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+  }
+  .captcha-input {
+    width: 100%;
+    padding: 14px;
+    font-size: 24px;
+    font-weight: 900;
+    text-align: center;
+    background: #05050a;
+    border: 2px solid #4a4468;
+    border-radius: 10px;
+    color: #fff;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+  .captcha-input:focus { border-color: #d4af37; }
+  .captcha-input.error {
+    border-color: #c03030;
+    animation: inputShake 0.3s;
+  }
+  @keyframes inputShake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  .captcha-error {
+    color: #ff6666;
+    font-size: 13px;
+    min-height: 18px;
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+  .captcha-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  .captcha-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 800;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: transform 0.08s;
+  }
+  .captcha-btn:active { transform: scale(0.96); }
+  .captcha-btn.submit {
+    background: linear-gradient(180deg, #3fa04a, #1e6b2a);
+    color: #fff;
+    border: 2px solid #2a8035;
+    box-shadow: 0 4px 0 #0f4218;
+    flex: 2;
+  }
+  .captcha-btn.cancel {
+    background: linear-gradient(180deg, #3a3454, #242040);
+    color: #d4af37;
+    border: 2px solid #4a4468;
+    box-shadow: 0 4px 0 #14102a;
+  }
+
+  .leaderboard-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 250;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .leaderboard-overlay.show { display: flex; }
+  .leaderboard-box {
+    background: linear-gradient(180deg, #1c1830, #0c0a1c);
+    border: 2px solid #d4af37;
+    border-radius: 16px;
+    padding: 18px 16px;
+    box-shadow: 0 0 60px rgba(212,175,55,0.6);
+    max-width: 400px;
+    width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    animation: captchaPop 0.3s cubic-bezier(0.2, 1.4, 0.5, 1);
+  }
+  .leaderboard-title {
+    font-size: 18px;
+    font-weight: 900;
+    color: #ffd700;
+    text-align: center;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 0 12px rgba(255,215,0,0.8);
+  }
+  .leaderboard-subtitle {
+    font-size: 11px;
+    color: #888;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .leaderboard-list {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 12px;
+    min-height: 200px;
+  }
+  .leaderboard-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+    font-size: 13px;
+  }
+  .leaderboard-row.me {
+    background: rgba(212,175,55,0.15);
+    border-color: rgba(212,175,55,0.6);
+    box-shadow: 0 0 10px rgba(212,175,55,0.4);
+  }
+  .leaderboard-row.top1 .lb-rank { color: #ffd700; }
+  .leaderboard-row.top2 .lb-rank { color: #c0c0c0; }
+  .leaderboard-row.top3 .lb-rank { color: #cd7f32; }
+  .lb-rank {
+    font-weight: 900;
+    min-width: 28px;
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+  }
+  .lb-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #ddd;
+  }
+  .lb-balance {
+    font-weight: 900;
+    color: #ffd700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .leaderboard-close {
+    background: linear-gradient(180deg, #3a3454, #242040);
+    color: #d4af37;
+    border: 2px solid #4a4468;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 0 #14102a;
+    width: 100%;
+  }
+  .leaderboard-close:active { transform: translateY(2px); box-shadow: 0 1px 0 #14102a; }
+  .leaderboard-status {
+    text-align: center;
+    color: #888;
+    padding: 20px;
+    font-size: 13px;
+  }
+
+  #debugBanner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: rgba(200,30,30,0.95);
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-family: monospace;
+    z-index: 9999;
+    display: none;
+    white-space: pre-wrap;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  #debugBanner.show { display: block; }
+
+  @media (min-width: 400px) and (min-height: 800px) {
+    .reel, .cell { width: 70px; }
+    .cell { height: 68px; font-size: 46px; }
+    .reels { gap: 5px; }
+    .bet-op { font-size: 13px; padding: 7px 0; }
+    .jackpot-value { font-size: 24px; }
+  }
+  @media (max-height: 700px) {
+    .reel, .cell { width: 54px; }
+    .cell { height: 52px; font-size: 34px; }
+    button.main { padding: 12px; font-size: 15px; }
+    .bet-op { font-size: 11px; padding: 5px 0; }
+    .jackpot-value { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="debugBanner"></div>
+<div class="gold-rain" id="goldRain"></div>
+
+<div class="captcha-overlay" id="captchaOverlay">
+  <div class="captcha-box">
+    <div class="captcha-title">Подтверждение</div>
+    <div class="captcha-prize">+1 000 ₽</div>
+    <div class="captcha-question" id="captchaQuestion">15 × 23 = ?</div>
+    <input class="captcha-input" id="captchaInput" type="text" inputmode="numeric" pattern="[0-9-]*" autocomplete="off" placeholder="Ответ">
+    <div class="captcha-error" id="captchaError"></div>
+    <div class="captcha-buttons">
+      <button class="captcha-btn cancel" id="captchaCancel" type="button">Отмена</button>
+      <button class="captcha-btn submit" id="captchaSubmit" type="button">Получить</button>
+    </div>
+  </div>
+</div>
+
+<div class="leaderboard-overlay" id="leaderboardOverlay">
+  <div class="leaderboard-box">
+    <div class="leaderboard-title">🏆 Лидерборд</div>
+    <div class="leaderboard-subtitle">Топ-10 по максимальному балансу</div>
+    <div class="leaderboard-list" id="leaderboardList">
+      <div class="leaderboard-status">Загрузка...</div>
+    </div>
+    <button class="leaderboard-close" id="leaderboardClose" type="button">Закрыть</button>
+  </div>
+</div>
+
+<div class="header">
+  <h1 class="title">🍒 Слот 🍒</h1>
+  <button class="header-btn" id="leaderboardBtn" type="button" title="Лидерборд">🏆</button>
+  <button class="header-btn" id="soundToggle" type="button">🔊</button>
+</div>
+
+<div class="jackpot-bar">
+  <span class="jackpot-label">👑 GRAND JACKPOT</span>
+  <span class="jackpot-value" id="jackpotValue">1 000 000 000 ₽</span>
+</div>
+
+<div class="machine" id="machine">
+  <div class="win-popup" id="winPopup">+0 ₽</div>
+
+  <div class="info">
+    <div class="info-group" id="balanceGroup">
+      <span class="label">💰</span>
+      <span class="value" id="balance">1 000 ₽</span>
+      <button class="add-btn" id="addBtn" type="button">+1000</button>
+    </div>
+    <div class="info-group" id="betGroup">
+      <span class="label">🎯</span>
+      <span class="value" id="bet">10 ₽</span>
+    </div>
+  </div>
+
+  <div class="bet-panel">
+    <button class="bet-op" id="betHalf" type="button">÷2</button>
+    <button class="bet-op" id="betX2" type="button">×2</button>
+    <button class="bet-op" id="betX3" type="button">×3</button>
+    <button class="bet-op" id="betX5" type="button">×5</button>
+    <button class="bet-op add" id="betAdd100" type="button">+100</button>
+    <button class="bet-op add" id="betAdd1000" type="button">+1000</button>
+  </div>
+
+  <div class="reels" id="reels">
+    <div class="reel" data-reel="0">
+      <div class="cell" data-reel="0" data-row="0">🍒</div>
+      <div class="cell" data-reel="0" data-row="1">🍋</div>
+      <div class="cell" data-reel="0" data-row="2">🍎</div>
+    </div>
+    <div class="reel" data-reel="1">
+      <div class="cell" data-reel="1" data-row="0">🍇</div>
+      <div class="cell" data-reel="1" data-row="1">🍊</div>
+      <div class="cell" data-reel="1" data-row="2">🍉</div>
+    </div>
+    <div class="reel" data-reel="2">
+      <div class="cell" data-reel="2" data-row="0">🍎</div>
+      <div class="cell" data-reel="2" data-row="1">🍒</div>
+      <div class="cell" data-reel="2" data-row="2">🍋</div>
+    </div>
+    <div class="reel" data-reel="3">
+      <div class="cell" data-reel="3" data-row="0">🍊</div>
+      <div class="cell" data-reel="3" data-row="1">🍉</div>
+      <div class="cell" data-reel="3" data-row="2">🍇</div>
+    </div>
+    <div class="reel" data-reel="4">
+      <div class="cell" data-reel="4" data-row="0">🍋</div>
+      <div class="cell" data-reel="4" data-row="1">🍎</div>
+      <div class="cell" data-reel="4" data-row="2">🍒</div>
+    </div>
+    <svg class="lightning-svg" id="lightningSvg"></svg>
+  </div>
+
+  <div class="message" id="message">Нажми КРУТИТЬ!</div>
+
+  <div class="buttons">
+    <button class="main" id="spinBtn" type="button">КРУТИТЬ</button>
+    <button class="main" id="resetBtn" type="button">СБРОС</button>
+  </div>
+
+  <div class="history" id="history"></div>
+
+  <div class="paytable">
+    <b>5 в ряд = ДЖЕКПОТ</b> · 4 в ряд ×1.5 · 3 в ряд × база<br>
+    🍉×8 · 🍇×5 · 🍊×3 · 🍋×2 · 🍒×1.5 · 🍎×1<br>
+    💎 + 🍉🍉🍉🍉 = GRAND JACKPOT
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+//  🔗 ЛИДЕРБОРД — твой Google Apps Script
+// ============================================================
+var LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycby9ynSXDZux3m-0AU33sMUQ0i9xaJnidtLzc6vZ5idsT5_VgB5-IuRNgL57wAXDGuXG/exec';
+
+function showError(msg) {
+  var b = document.getElementById('debugBanner');
+  if (!b) return;
+  b.textContent += '❌ ' + msg + '\n';
+  b.classList.add('show');
+  console.error(msg);
+}
+window.onerror = function(msg, url, line) {
+  showError(msg + ' (строка ' + line + ')');
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+
+  var CONFIG = {
+    symbols: [
+      { emoji: '🍉', weight: 3,  pay3: 8,   pay4: 20,  pay5: 60   },
+      { emoji: '🍇', weight: 5,  pay3: 5,   pay4: 12,  pay5: 35   },
+      { emoji: '🍊', weight: 8,  pay3: 3,   pay4: 7,   pay5: 20   },
+      { emoji: '🍋', weight: 12, pay3: 2,   pay4: 5,   pay5: 12   },
+      { emoji: '🍒', weight: 16, pay3: 1.5, pay4: 3,   pay5: 8    },
+      { emoji: '🍎', weight: 24, pay3: 1,   pay4: 2,   pay5: 5    }
+    ],
+    diamondWeight: 1,
+    bet: { step: 10, min: 10, add: 1000, start: 1000 },
+    spinDuration: 1500,
+    reelStagger: 250,
+    historyLen: 5,
+    storageKey: 'slot_v15',
+    jackpot: {
+      start: 1000000000,
+      contributionPct: 0.005,
+    },
+  };
+
+  var REELS_COUNT = 5;
+  var ROWS = 3;
+  var DIAMOND = '💎';
+  var RUB = ' ₽';
+
+  // ---------- ИДЕНТИФИКАЦИЯ ----------
+  var player = { id: '', name: 'Игрок' };
+
+  function initPlayerIdentity() {
+    try {
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+        var u = window.Telegram.WebApp.initDataUnsafe.user;
+        if (u) {
+          player.id = 'tg_' + u.id;
+          var name = (u.first_name || '') + (u.last_name ? ' ' + u.last_name : '');
+          player.name = name.trim() || ('Игрок ' + u.id);
+          try {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+          } catch(e) {}
+          return;
+        }
+      }
+    } catch(e) {}
+
+    try {
+      var localId = localStorage.getItem('slot_player_id');
+      var localName = localStorage.getItem('slot_player_name');
+      if (!localId) {
+        localId = 'local_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        localStorage.setItem('slot_player_id', localId);
+      }
+      player.id = localId;
+      player.name = localName || 'Гость_' + localId.slice(6, 10);
+    } catch(e) {
+      player.id = 'anon_' + Date.now();
+      player.name = 'Аноним';
+    }
+  }
+
+  // ---------- ОТПРАВКА ОЧКОВ ----------
+  var lastSentBalance = -1;
+  function sendScoreToLeaderboard() {
+    try {
+      if (!LEADERBOARD_URL) return;
+      var now = Date.now();
+      if (sendScoreToLeaderboard._last && now - sendScoreToLeaderboard._last < 5000) return;
+      sendScoreToLeaderboard._last = now;
+      var rounded = Math.floor(state.balance);
+      if (rounded === lastSentBalance) return;
+      lastSentBalance = rounded;
+
+      var payload = {
+        playerId: player.id,
+        playerName: player.name,
+        balance: rounded,
+      };
+
+      fetch(LEADERBOARD_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+      }).catch(function(){});
+    } catch(e) {}
+  }
+
+  // ---------- ЗАГРУЗКА ЛИДЕРБОРДА ----------
+  function loadLeaderboard() {
+    var listEl = document.getElementById('leaderboardList');
+    listEl.innerHTML = '<div class="leaderboard-status">Загрузка...</div>';
+
+    fetch(LEADERBOARD_URL, { method: 'GET' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || !data.ok || !Array.isArray(data.leaders)) {
+          listEl.innerHTML = '<div class="leaderboard-status">Ошибка загрузки</div>';
+          return;
+        }
+        var leaders = data.leaders.slice(0, 10);
+        if (leaders.length === 0) {
+          listEl.innerHTML = '<div class="leaderboard-status">Пока никто не играл 🎰</div>';
+          return;
+        }
+        var html = '';
+        leaders.forEach(function(row, i) {
+          var rank = i + 1;
+          var medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank;
+          var cls = 'leaderboard-row';
+          if (rank === 1) cls += ' top1';
+          if (rank === 2) cls += ' top2';
+          if (rank === 3) cls += ' top3';
+          if (row.playerId === player.id) cls += ' me';
+          var name = (row.playerName || 'Игрок').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          var balance = Math.round(row.maxBalance || 0).toLocaleString('ru-RU') + ' ₽';
+          html += '<div class="' + cls + '">'
+              + '<span class="lb-rank">' + medal + '</span>'
+              + '<span class="lb-name">' + name + '</span>'
+              + '<span class="lb-balance">' + balance + '</span>'
+              + '</div>';
+        });
+        listEl.innerHTML = html;
+      })
+      .catch(function(err) {
+        listEl.innerHTML = '<div class="leaderboard-status">Ошибка сети<br>' + (err.message || '') + '</div>';
+      });
+  }
+
+  function openLeaderboard() {
+    document.getElementById('leaderboardOverlay').classList.add('show');
+    loadLeaderboard();
+  }
+  function closeLeaderboard() {
+    document.getElementById('leaderboardOverlay').classList.remove('show');
+  }
+
+  initPlayerIdentity();
+
+  // ---------- ИГРОВАЯ ЛОГИКА ----------
+  var PAYOUTS3 = {}, PAYOUTS4 = {}, PAYOUTS5 = {};
+  CONFIG.symbols.forEach(function(s) {
+    PAYOUTS3[s.emoji] = s.pay3;
+    PAYOUTS4[s.emoji] = s.pay4;
+    PAYOUTS5[s.emoji] = s.pay5;
+  });
+
+  var WEIGHTED = [];
+  CONFIG.symbols.forEach(function(s) {
+    for (var i = 0; i < s.weight; i++) WEIGHTED.push(s.emoji);
+  });
+  for (var i = 0; i < CONFIG.diamondWeight; i++) WEIGHTED.push(DIAMOND);
+
+  var state = {
+    balance: CONFIG.bet.start,
+    bet: CONFIG.bet.min,
+    jackpot: CONFIG.jackpot.start,
+    spinning: false,
+    outOfFunds: false,
+    history: [],
+    soundOn: true,
+  };
+
+  function saveStore() {
+    try {
+      if (window.localStorage) {
+        localStorage.setItem(CONFIG.storageKey, JSON.stringify({
+          balance: state.balance,
+          bet: state.bet,
+          jackpot: state.jackpot,
+          soundOn: state.soundOn,
+        }));
+      }
+    } catch(e) {}
+  }
+  function loadStore() {
+    try {
+      if (!window.localStorage) return;
+      var raw = localStorage.getItem(CONFIG.storageKey);
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      if (typeof d.balance === 'number') state.balance = d.balance;
+      if (typeof d.bet === 'number') state.bet = d.bet;
+      if (typeof d.jackpot === 'number') state.jackpot = d.jackpot;
+      if (typeof d.soundOn === 'boolean') state.soundOn = d.soundOn;
+    } catch(e) {}
+  }
+
+  function $(id) { return document.getElementById(id); }
+  var el = {
+    balance: $('balance'), bet: $('bet'), message: $('message'),
+    spinBtn: $('spinBtn'), resetBtn: $('resetBtn'),
+    addBtn: $('addBtn'), betHalf: $('betHalf'), betX2: $('betX2'),
+    betX3: $('betX3'), betX5: $('betX5'),
+    betAdd100: $('betAdd100'), betAdd1000: $('betAdd1000'),
+    winPopup: $('winPopup'), machine: $('machine'),
+    balanceGroup: $('balanceGroup'), history: $('history'),
+    soundToggle: $('soundToggle'), reelsBox: $('reels'),
+    lightningSvg: $('lightningSvg'), jackpotValue: $('jackpotValue'),
+    goldRain: $('goldRain'),
+    captchaOverlay: $('captchaOverlay'), captchaQuestion: $('captchaQuestion'),
+    captchaInput: $('captchaInput'), captchaError: $('captchaError'),
+    captchaSubmit: $('captchaSubmit'), captchaCancel: $('captchaCancel'),
+  };
+
+  function getCell(reelIdx, row) {
+    return el.reelsBox.querySelector('.cell[data-reel="' + reelIdx + '"][data-row="' + row + '"]');
+  }
+
+  function fmt(n) {
+    var num = Math.round(n);
+    try {
+      return num.toLocaleString('ru-RU') + RUB;
+    } catch(e) {
+      return String(num) + RUB;
+    }
+  }
+
+  var soundCtx = null;
+  function ensureAudio() {
+    try {
+      if (!soundCtx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        soundCtx = new AC();
+      }
+      if (soundCtx.state === 'suspended') soundCtx.resume().catch(function(){});
+      return soundCtx;
+    } catch(e) { return null; }
+  }
+  function beep(freq, dur, vol, type) {
+    if (!state.soundOn) return;
+    var c = ensureAudio(); if (!c) return;
+    try {
+      var osc = c.createOscillator();
+      var g = c.createGain();
+      osc.type = type || 'square';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(vol || 0.15, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + (dur || 0.08));
+      osc.connect(g); g.connect(c.destination);
+      osc.start(); osc.stop(c.currentTime + (dur || 0.08));
+    } catch(e) {}
+  }
+  var Sound = {
+    click: function() { beep(600, 0.05, 0.08); },
+    stop:  function() { beep(300, 0.1, 0.12, 'sine'); },
+    win:   function() { [523,659,784,1046].forEach(function(f,i){ setTimeout(function(){beep(f,0.15,0.18,'sine');}, i*90); }); },
+    bigWin:function() { [523,659,784,1046,1318].forEach(function(f,i){ setTimeout(function(){beep(f,0.2,0.22,'triangle');}, i*80); }); },
+    miss:  function() { beep(150, 0.2, 0.1, 'sawtooth'); },
+    jackpot:function() { [523,659,784,1046,1318,1568,2093].forEach(function(f,i){ setTimeout(function(){beep(f,0.35,0.25,'triangle');}, i*150); }); }
+  };
+
+  function rndEmoji() { return WEIGHTED[Math.floor(Math.random() * WEIGHTED.length)]; }
+  function vibrate(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch(e) {} }
+
+  function readGrid() {
+    var grid = [];
+    for (var r = 0; r < REELS_COUNT; r++) {
+      var col = [];
+      for (var row = 0; row < ROWS; row++) {
+        var c = getCell(r, row);
+        col.push(c ? c.textContent : '🍎');
+      }
+      grid.push(col);
+    }
+    return grid;
+  }
+
+  function setCell(reelIdx, row, emoji) {
+    var c = getCell(reelIdx, row);
+    if (!c) return;
+    c.textContent = emoji;
+    c.classList.toggle('diamond', emoji === DIAMOND);
+  }
+
+  function animateReel(reelIdx, duration) {
+    return new Promise(function(resolve) {
+      var cells = [getCell(reelIdx, 0), getCell(reelIdx, 1), getCell(reelIdx, 2)];
+      cells.forEach(function(c) { if (c) c.classList.add('spinning'); });
+
+      var interval = setInterval(function() {
+        cells.forEach(function(c) {
+          if (!c) return;
+          var e = rndEmoji();
+          c.textContent = e;
+          c.classList.toggle('diamond', e === DIAMOND);
+        });
+      }, 60);
+
+      setTimeout(function() {
+        clearInterval(interval);
+        cells.forEach(function(c) {
+          if (!c) return;
+          c.classList.remove('spinning');
+          var e = rndEmoji();
+          c.textContent = e;
+          c.classList.toggle('diamond', e === DIAMOND);
+        });
+        vibrate(25);
+        Sound.stop();
+        resolve();
+      }, duration);
+    });
+  }
+
+  var DIAGONALS = { 0: [0, 1], 1: [0, 1, 2], 2: [1, 2] };
+
+  function findAllWinsLR(grid) {
+    var results = [];
+    for (var startRow = 0; startRow < ROWS; startRow++) {
+      var symbol = grid[0][startRow];
+      if (symbol === DIAMOND) continue;
+
+      var stack = [[{ reel: 0, row: startRow }]];
+      var completed = [];
+      var safety = 0;
+
+      while (stack.length && safety < 5000) {
+        safety++;
+        var path = stack.pop();
+        var last = path[path.length - 1];
+        var nextReel = last.reel + 1;
+
+        if (nextReel >= REELS_COUNT) {
+          if (path.length >= 3) completed.push(path);
+          continue;
+        }
+
+        var candidates = DIAGONALS[last.row];
+        var extended = false;
+        for (var k = 0; k < candidates.length; k++) {
+          var r = candidates[k];
+          if (grid[nextReel][r] === symbol && path.length < REELS_COUNT) {
+            var newPath = path.slice();
+            newPath.push({ reel: nextReel, row: r });
+            stack.push(newPath);
+            extended = true;
+          }
+        }
+        if (!extended && path.length >= 3) completed.push(path);
+      }
+
+      if (completed.length) {
+        completed.sort(function(a,b){ return b.length - a.length; });
+        var best = completed[0];
+        var payout = 0;
+        if (best.length === 3) payout = PAYOUTS3[symbol] || 0;
+        else if (best.length === 4) payout = PAYOUTS4[symbol] || 0;
+        else if (best.length >= 5) payout = PAYOUTS5[symbol] || 0;
+
+        if (payout > 0) {
+          results.push({ symbol: symbol, length: best.length, path: best, payout: payout });
+        }
+      }
+    }
+    return results;
+  }
+
+  function checkGrandJackpot(grid) {
+    if (grid[4][1] !== DIAMOND) return null;
+
+    function tryPath(reel, row, path) {
+      if (reel >= 4) return null;
+      if (grid[reel][row] !== '🍉') return null;
+      var np = path.slice(); np.push({ reel: reel, row: row });
+      if (reel === 3) {
+        if (Math.abs(row - 1) <= 1) {
+          np.push({ reel: 4, row: 1 });
+          return np;
+        }
+        return null;
+      }
+      var nexts = DIAGONALS[row];
+      for (var i = 0; i < nexts.length; i++) {
+        var res = tryPath(reel + 1, nexts[i], np);
+        if (res) return res;
+      }
+      return null;
+    }
+
+    for (var startRow = 0; startRow < ROWS; startRow++) {
+      if (grid[0][startRow] !== '🍉') continue;
+      var path = tryPath(0, startRow, []);
+      if (path && path.length === 5) return path;
+    }
+    return null;
+  }
+
+  function dedupeWins(wins) {
+    var sorted = wins.slice().sort(function(a,b){ return b.length - a.length; });
+    var used = {};
+    var result = [];
+    for (var i = 0; i < sorted.length; i++) {
+      var w = sorted[i];
+      var keys = w.path.map(function(p){ return p.reel + ',' + p.row; });
+      var overlap = keys.filter(function(k){ return used[k]; }).length;
+      if (overlap > 0 && overlap >= keys.length / 2) continue;
+      result.push(w);
+      keys.forEach(function(k){ used[k] = true; });
+    }
+    return result;
+  }
+
+  function getCellCenter(reelIdx, row) {
+    var reelsRect = el.reelsBox.getBoundingClientRect();
+    var c = getCell(reelIdx, row);
+    if (!c) return { x: 0, y: 0 };
+    var r = c.getBoundingClientRect();
+    return {
+      x: r.left - reelsRect.left + r.width / 2,
+      y: r.top - reelsRect.top + r.height / 2,
+    };
+  }
+  function lightningPoints(a, b, segments) {
+    var pts = [a];
+    for (var i = 1; i < segments; i++) {
+      var t = i / segments;
+      var x = a.x + (b.x - a.x) * t;
+      var y = a.y + (b.y - a.y) * t;
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var len = Math.sqrt(dx*dx + dy*dy) || 1;
+      var nx = -dy / len, ny = dx / len;
+      var offset = (Math.random() - 0.5) * 12;
+      pts.push({ x: x + nx * offset, y: y + ny * offset });
+    }
+    pts.push(b);
+    return pts;
+  }
+  function drawLightning(path, color) {
+    if (path.length < 2) return;
+    var reelsRect = el.reelsBox.getBoundingClientRect();
+    el.lightningSvg.setAttribute('viewBox', '0 0 ' + reelsRect.width + ' ' + reelsRect.height);
+    el.lightningSvg.setAttribute('width', reelsRect.width);
+    el.lightningSvg.setAttribute('height', reelsRect.height);
+
+    var centers = path.map(function(p){ return getCellCenter(p.reel, p.row); });
+    var d = '';
+    for (var i = 0; i < centers.length - 1; i++) {
+      var a = centers[i], b = centers[i + 1];
+      var zig = lightningPoints(a, b, 3);
+      zig.forEach(function(pt, idx) {
+        if (i === 0 && idx === 0) d += 'M ' + pt.x + ' ' + pt.y + ' ';
+        else d += 'L ' + pt.x + ' ' + pt.y + ' ';
+      });
+    }
+    var pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathEl.setAttribute('d', d);
+    if (color) pathEl.setAttribute('stroke', color);
+    el.lightningSvg.appendChild(pathEl);
+  }
+  function clearLightning() { el.lightningSvg.innerHTML = ''; }
+
+  function highlightCells(wins) {
+    document.querySelectorAll('.cell.hit').forEach(function(c){ c.classList.remove('hit'); });
+    clearLightning();
+    wins.forEach(function(w) {
+      var color = w.isJackpot ? '#00ffff' : null;
+      w.path.forEach(function(p) {
+        var c = getCell(p.reel, p.row);
+        if (c) c.classList.add('hit');
+      });
+      drawLightning(w.path, color);
+    });
+  }
+
+  var messageTimer = null;
+  var shakeTimer = null;
+
+  function clearAllTimers() {
+    if (messageTimer) { clearTimeout(messageTimer); messageTimer = null; }
+    if (shakeTimer) { clearTimeout(shakeTimer); shakeTimer = null; }
+  }
+
+  function setMessage(text, cls, color) {
+    el.message.classList.remove('win', 'jackpot');
+    el.message.textContent = text;
+    el.message.style.color = color || '#d4af37';
+    if (cls) el.message.classList.add(cls);
+  }
+
+  function clearMessage() {
+    el.message.classList.remove('win', 'jackpot');
+    el.message.textContent = 'Нажми КРУТИТЬ!';
+    el.message.style.color = '#d4af37';
+  }
+
+  function resetAllEffects() {
+    clearAllTimers();
+    document.querySelectorAll('.cell.hit').forEach(function(c){ c.classList.remove('hit'); });
+    clearLightning();
+    el.winPopup.classList.remove('show');
+    el.machine.classList.remove('shake', 'mega-shake');
+    clearMessage();
+  }
+
+  function updateJackpotUI() {
+    if (!el.jackpotValue) return;
+    el.jackpotValue.textContent = fmt(state.jackpot);
+  }
+
+  function startGoldRain(duration) {
+    el.goldRain.classList.add('show');
+    el.goldRain.innerHTML = '';
+    var coins = ['💰', '💎', '👑', '⭐', '🌟'];
+    var interval = setInterval(function() {
+      var coin = document.createElement('div');
+      coin.className = 'coin';
+      coin.textContent = coins[Math.floor(Math.random() * coins.length)];
+      coin.style.left = Math.random() * 100 + '%';
+      coin.style.animationDuration = (2 + Math.random() * 2) + 's';
+      el.goldRain.appendChild(coin);
+      setTimeout(function(){ coin.remove(); }, 4000);
+    }, 80);
+    setTimeout(function() {
+      clearInterval(interval);
+      el.goldRain.classList.remove('show');
+      el.goldRain.innerHTML = '';
+    }, duration || 5000);
+  }
+
+  function showWinVisual(wins, totalWin, isJackpot) {
+    clearAllTimers();
+    document.querySelectorAll('.cell.hit').forEach(function(c){ c.classList.remove('hit'); });
+    clearLightning();
+
+    highlightCells(wins);
+
+    var winText = '+' + fmt(totalWin);
+    el.winPopup.classList.remove('show');
+    el.winPopup.textContent = isJackpot ? '👑 GRAND JACKPOT! 👑' : winText;
+    void el.winPopup.offsetWidth;
+    el.winPopup.classList.add('show');
+
+    if (isJackpot) {
+      setMessage('👑 ДЖЕКПОТ! ' + winText, 'jackpot', '#00ffff');
+    } else {
+      setMessage(winText, 'win', '#ffd700');
+    }
+
+    if (isJackpot) {
+      el.machine.classList.add('mega-shake');
+      Sound.jackpot();
+      startGoldRain(5500);
+      vibrate([200, 100, 200, 100, 200, 100, 400]);
+      shakeTimer = setTimeout(function(){ el.machine.classList.remove('mega-shake'); }, 3500);
+    } else if (totalWin >= state.bet * 20) {
+      el.machine.classList.add('shake');
+      Sound.bigWin();
+      vibrate([100, 50, 100, 50, 200]);
+      shakeTimer = setTimeout(function(){ el.machine.classList.remove('shake'); }, 900);
+    } else {
+      Sound.win();
+      vibrate([60, 30, 60]);
+    }
+
+    var lifetime = isJackpot ? 5000 : 2200;
+    messageTimer = setTimeout(function() {
+      document.querySelectorAll('.cell.hit').forEach(function(c){ c.classList.remove('hit'); });
+      clearLightning();
+      el.winPopup.classList.remove('show');
+      clearMessage();
+      messageTimer = null;
+    }, lifetime);
+  }
+
+  function showMiss() {
+    setMessage('Промах!', null, '#d4af37');
+    Sound.miss();
+    messageTimer = setTimeout(function() {
+      clearMessage();
+      messageTimer = null;
+    }, 600);
+  }
+
+  function pushHistory(type) {
+    state.history.push(type);
+    if (state.history.length > CONFIG.historyLen) state.history.shift();
+    renderHistory();
+  }
+  function renderHistory() {
+    if (!el.history) return;
+    el.history.innerHTML = '';
+    for (var i = 0; i < CONFIG.historyLen; i++) {
+      var d = document.createElement('div');
+      d.className = 'history-dot';
+      var t = state.history[i];
+      if (t) d.classList.add(t);
+      el.history.appendChild(d);
+    }
+  }
+
+  function updateUI() {
+    el.balance.textContent = fmt(state.balance);
+    el.bet.textContent = fmt(state.bet);
+    var canSpin = !state.spinning && state.balance >= state.bet;
+    el.spinBtn.disabled = !canSpin;
+    el.spinBtn.textContent = state.outOfFunds ? 'НЕТ СРЕДСТВ' : 'КРУТИТЬ';
+
+    var disabled = state.spinning || state.outOfFunds || state.balance < CONFIG.bet.min;
+    el.betHalf.disabled = disabled || state.bet <= CONFIG.bet.min;
+    el.betX2.disabled = disabled;
+    el.betX3.disabled = disabled;
+    el.betX5.disabled = disabled;
+    el.betAdd100.disabled = disabled;
+    el.betAdd1000.disabled = disabled;
+    el.addBtn.disabled = state.spinning;
+
+    if (!state.spinning) {
+      if (state.balance < CONFIG.bet.min) {
+        state.outOfFunds = true;
+        setMessage('Нет средств — жми +1000', null, '#c03030');
+      } else if (state.balance < state.bet) {
+        setMessage('Ставка больше баланса', null, '#b08838');
+      }
+    }
+  }
+
+  function spin() {
+    try {
+      if (state.spinning) return;
+      if (state.balance < state.bet) {
+        state.outOfFunds = state.balance < CONFIG.bet.min;
+        updateUI();
+        vibrate(200);
+        return;
+      }
+
+      resetAllEffects();
+
+      state.spinning = true;
+      state.balance -= state.bet;
+      state.outOfFunds = false;
+      state.jackpot += state.bet * CONFIG.jackpot.contributionPct;
+      updateJackpotUI();
+      updateUI();
+      saveStore();
+
+      setMessage('Крутим...', null, '#b08838');
+
+      vibrate([40, 30, 40]);
+      Sound.click();
+
+      var promises = [];
+      for (var i = 0; i < REELS_COUNT; i++) {
+        (function(idx) {
+          promises.push(animateReel(idx, CONFIG.spinDuration + idx * CONFIG.reelStagger));
+        })(i);
+      }
+
+      Promise.all(promises).then(function() {
+        var grid = readGrid();
+        var grandPath = checkGrandJackpot(grid);
+
+        if (grandPath) {
+          var jackpotWin = state.jackpot;
+          state.jackpot = CONFIG.jackpot.start;
+          updateJackpotUI();
+          state.balance += jackpotWin;
+          state.spinning = false;
+          var wins = [{
+            symbol: DIAMOND, length: 5, path: grandPath,
+            payout: jackpotWin, isJackpot: true,
+          }];
+          showWinVisual(wins, jackpotWin, true);
+          pushHistory('jackpot');
+        } else {
+          var allWins = findAllWinsLR(grid);
+          var wins2 = dedupeWins(allWins);
+          var totalWin = 0;
+          wins2.forEach(function(w){ totalWin += state.bet * w.payout; });
+          state.spinning = false;
+          if (totalWin > 0) {
+            totalWin = Math.floor(totalWin);
+            state.balance += totalWin;
+            var anyBig = wins2.some(function(w){ return w.length >= 4; });
+            showWinVisual(wins2, totalWin, false);
+            pushHistory(anyBig ? 'big' : 'win');
+          } else {
+            showMiss();
+            pushHistory('miss');
+          }
+        }
+
+        if (state.bet > state.balance) {
+          state.bet = Math.max(CONFIG.bet.min,
+            Math.floor(state.balance / CONFIG.bet.step) * CONFIG.bet.step);
+        }
+
+        saveStore();
+        updateUI();
+        sendScoreToLeaderboard();
+      }).catch(function(err) {
+        showError('spin promise: ' + err.message);
+        state.spinning = false;
+        clearMessage();
+        updateUI();
+      });
+
+    } catch(e) {
+      showError('spin(): ' + e.message);
+      state.spinning = false;
+      clearMessage();
+      updateUI();
+    }
+  }
+
+  function reset() {
+    try {
+      if (state.spinning) return;
+      resetAllEffects();
+      state.balance = CONFIG.bet.start;
+      state.bet = CONFIG.bet.min;
+      state.outOfFunds = false;
+      state.history = [];
+      for (var r = 0; r < REELS_COUNT; r++) {
+        for (var row = 0; row < ROWS; row++) {
+          setCell(r, row, rndEmoji());
+        }
+      }
+      renderHistory();
+      updateUI();
+      saveStore();
+    } catch(e) { showError('reset(): ' + e.message); }
+  }
+
+  function setBet(newBet) {
+    if (state.spinning) return;
+    newBet = Math.floor(newBet);
+    if (newBet < CONFIG.bet.min) newBet = CONFIG.bet.min;
+    if (newBet > state.balance) newBet = state.balance;
+    if (newBet === state.bet) return;
+    state.bet = newBet;
+    vibrate(15);
+    Sound.click();
+    updateUI();
+    saveStore();
+  }
+  function betHalf() { setBet(Math.floor(state.bet / 2)); }
+  function betX2() { setBet(state.bet * 2); }
+  function betX3() { setBet(state.bet * 3); }
+  function betX5() { setBet(state.bet * 5); }
+  function betAdd100() { setBet(state.bet + 100); }
+  function betAdd1000() { setBet(state.bet + 1000); }
+
+  var captchaAnswer = 0;
+  var captchaActive = false;
+
+  function generateCaptcha() {
+    var op = Math.floor(Math.random() * 4);
+    var a, b, q, ans;
+    if (op === 0) {
+      a = 2 + Math.floor(Math.random() * 19);
+      b = 2 + Math.floor(Math.random() * 19);
+      ans = a + b;
+      q = a + ' + ' + b;
+    } else if (op === 1) {
+      a = 5 + Math.floor(Math.random() * 16);
+      b = 2 + Math.floor(Math.random() * (a - 1));
+      ans = a - b;
+      q = a + ' − ' + b;
+    } else if (op === 2) {
+      a = 2 + Math.floor(Math.random() * 14);
+      b = 2 + Math.floor(Math.random() * 14);
+      ans = a * b;
+      q = a + ' × ' + b;
+    } else {
+      b = 2 + Math.floor(Math.random() * 9);
+      ans = 2 + Math.floor(Math.random() * 10);
+      a = b * ans;
+      q = a + ' ÷ ' + b;
+    }
+    captchaAnswer = ans;
+    el.captchaQuestion.textContent = q + ' = ?';
+    el.captchaInput.value = '';
+    el.captchaError.textContent = '';
+    el.captchaInput.classList.remove('error');
+  }
+
+  function openCaptcha() {
+    if (state.spinning) return;
+    captchaActive = true;
+    generateCaptcha();
+    el.captchaOverlay.classList.add('show');
+    setTimeout(function() {
+      try { el.captchaInput.focus(); } catch(e) {}
+    }, 100);
+  }
+
+  function closeCaptcha() {
+    captchaActive = false;
+    el.captchaOverlay.classList.remove('show');
+    el.captchaInput.blur();
+  }
+
+  function submitCaptcha() {
+    if (!captchaActive) return;
+    var raw = String(el.captchaInput.value || '').trim();
+    raw = raw.replace(/\s+/g, '').replace(',', '.');
+    var val = parseInt(raw, 10);
+
+    if (isNaN(val)) {
+      el.captchaError.textContent = 'Введи число';
+      el.captchaInput.classList.add('error');
+      setTimeout(function(){ el.captchaInput.classList.remove('error'); }, 400);
+      return;
+    }
+    if (val !== captchaAnswer) {
+      el.captchaError.textContent = 'Неверно, попробуй ещё';
+      el.captchaInput.classList.add('error');
+      el.captchaInput.value = '';
+      setTimeout(function(){ el.captchaInput.classList.remove('error'); }, 400);
+      vibrate(150);
+      return;
+    }
+
+    vibrate(30);
+    Sound.win();
+    state.balance += CONFIG.bet.add;
+    state.outOfFunds = false;
+    closeCaptcha();
+    clearMessage();
+    setMessage('+' + fmt(CONFIG.bet.add) + ' зачислено!', 'win', '#3fa04a');
+    messageTimer = setTimeout(function() {
+      clearMessage();
+      messageTimer = null;
+    }, 1500);
+    updateUI();
+    saveStore();
+    sendScoreToLeaderboard();
+  }
+
+  function addBalance() {
+    try {
+      if (state.spinning) return;
+      openCaptcha();
+    } catch(e) { showError('addBalance(): ' + e.message); }
+  }
+
+  function toggleSound() {
+    state.soundOn = !state.soundOn;
+    el.soundToggle.classList.toggle('off', !state.soundOn);
+    el.soundToggle.textContent = state.soundOn ? '🔊' : '🔇';
+    saveStore();
+  }
+
+  try {
+    el.spinBtn.addEventListener('click', spin);
+    el.resetBtn.addEventListener('click', reset);
+    el.betHalf.addEventListener('click', betHalf);
+    el.betX2.addEventListener('click', betX2);
+    el.betX3.addEventListener('click', betX3);
+    el.betX5.addEventListener('click', betX5);
+    el.betAdd100.addEventListener('click', betAdd100);
+    el.betAdd1000.addEventListener('click', betAdd1000);
+    el.addBtn.addEventListener('click', addBalance);
+    el.soundToggle.addEventListener('click', toggleSound);
+    el.captchaSubmit.addEventListener('click', submitCaptcha);
+    el.captchaCancel.addEventListener('click', closeCaptcha);
+    el.captchaInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') submitCaptcha();
+    });
+    document.getElementById('leaderboardBtn').addEventListener('click', openLeaderboard);
+    document.getElementById('leaderboardClose').addEventListener('click', closeLeaderboard);
+    document.getElementById('leaderboardOverlay').addEventListener('click', function(e) {
+      if (e.target === this) closeLeaderboard();
+    });
+  } catch(e) {
+    showError('bind buttons: ' + e.message);
+  }
+
+  try { loadStore(); } catch(e) {}
+
+  try {
+    for (var r = 0; r < REELS_COUNT; r++) {
+      for (var row = 0; row < ROWS; row++) {
+        setCell(r, row, rndEmoji());
+      }
+    }
+  } catch(e) { showError('fill cells: ' + e.message); }
+
+  try { renderHistory(); } catch(e) {}
+  el.soundToggle.classList.toggle('off', !state.soundOn);
+  el.soundToggle.textContent = state.soundOn ? '🔊' : '🔇';
+
+  updateJackpotUI();
+  updateUI();
+
+  // Отправляем при старте текущий баланс
+  setTimeout(sendScoreToLeaderboard, 2000);
+
+  document.addEventListener('touchstart', function unlock() {
+    try { ensureAudio(); } catch(e) {}
+    document.removeEventListener('touchstart', unlock);
+  }, { once: true, passive: true });
+
+});
+</script>
+</body>
+</html>
