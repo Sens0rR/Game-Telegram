@@ -12,7 +12,7 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, doc, setDoc, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDYBQrw8cUKzvURETRFQRZp_b7F_-jBzAM",
@@ -32,6 +32,7 @@
     collection: collection,
     setDoc: setDoc,
     getDocs: getDocs,
+    deleteDoc: deleteDoc,
     runTransaction: runTransaction,
     ready: true
   };
@@ -70,6 +71,9 @@
     -webkit-text-fill-color: transparent;
     letter-spacing: 2px; font-weight: 900;
     text-transform: uppercase;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
   }
   .header-btn {
     background: rgba(180,140,60,0.15);
@@ -129,9 +133,7 @@
     z-index: 1;
     transition: transform 0.3s;
   }
-  .jackpot-value.grow {
-    animation: jackpotGrow 0.4s ease-out;
-  }
+  .jackpot-value.grow { animation: jackpotGrow 0.4s ease-out; }
   @keyframes jackpotGrow {
     0% { transform: scale(1); }
     50% { transform: scale(1.12); color: #ffd700; }
@@ -317,22 +319,10 @@
     letter-spacing: 1px;
     transition: color 0.2s;
   }
-  .message.win {
-    color: #ffd700;
-    text-shadow: 0 0 14px rgba(255,215,0,1);
-  }
-  .message.jackpot {
-    color: #00ffff;
-    text-shadow: 0 0 14px #00ffff, 0 0 28px #ffd700;
-  }
-  .message.limit {
-    color: #ff8844;
-    text-shadow: 0 0 14px rgba(255,136,68,1);
-  }
-  .message.promo {
-    color: #a855f7;
-    text-shadow: 0 0 14px #a855f7, 0 0 28px #a855f7;
-  }
+  .message.win { color: #ffd700; text-shadow: 0 0 14px rgba(255,215,0,1); }
+  .message.jackpot { color: #00ffff; text-shadow: 0 0 14px #00ffff, 0 0 28px #ffd700; }
+  .message.limit { color: #ff8844; text-shadow: 0 0 14px rgba(255,136,68,1); }
+  .message.promo { color: #a855f7; text-shadow: 0 0 14px #a855f7, 0 0 28px #a855f7; }
 
   .buttons { display: flex; gap: 8px; }
   button.main {
@@ -474,10 +464,7 @@
     margin-bottom: 10px;
     font-weight: 700;
   }
-  .captcha-buttons {
-    display: flex;
-    gap: 8px;
-  }
+  .captcha-buttons { display: flex; gap: 8px; }
   .captcha-btn {
     flex: 1;
     padding: 12px;
@@ -614,6 +601,202 @@
     font-size: 13px;
   }
 
+  /* ---------- АДМИНКА ---------- */
+  .admin-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 300;
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 12px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-overlay.show { display: flex; }
+  .admin-box {
+    background: linear-gradient(180deg, #1a0a0a, #0a0505);
+    border: 2px solid #ff4444;
+    border-radius: 16px;
+    padding: 16px 14px;
+    box-shadow: 0 0 60px rgba(255,68,68,0.7);
+    max-width: 440px;
+    width: 100%;
+    margin: auto;
+    animation: captchaPop 0.3s cubic-bezier(0.2, 1.4, 0.5, 1);
+  }
+  .admin-title {
+    font-size: 16px;
+    font-weight: 900;
+    color: #ff4444;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+    text-shadow: 0 0 12px rgba(255,68,68,0.8);
+  }
+  .admin-subtitle {
+    font-size: 10px;
+    color: #888;
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  .admin-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-tabs::-webkit-scrollbar { display: none; }
+  .admin-tab {
+    flex-shrink: 0;
+    background: rgba(255,68,68,0.1);
+    border: 1px solid rgba(255,68,68,0.4);
+    color: #ff8888;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .admin-tab.active {
+    background: linear-gradient(180deg, #ff4444, #aa2222);
+    color: #fff;
+    border-color: #ff6666;
+  }
+  .admin-section { display: none; }
+  .admin-section.active { display: block; }
+  .admin-label {
+    font-size: 11px;
+    color: #ff8888;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 12px 0 6px;
+  }
+  .admin-row {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .admin-btn {
+    flex: 1;
+    min-width: 70px;
+    background: linear-gradient(180deg, #3a3454, #242040);
+    color: #fff;
+    border: 1px solid #4a4468;
+    border-radius: 6px;
+    padding: 8px 6px;
+    font-size: 11px;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.08s;
+    white-space: nowrap;
+  }
+  .admin-btn:active { transform: scale(0.95); }
+  .admin-btn.green { background: linear-gradient(180deg, #3fa04a, #1e6b2a); border-color: #2a8035; }
+  .admin-btn.red { background: linear-gradient(180deg, #cc3333, #881111); border-color: #aa2222; }
+  .admin-btn.orange { background: linear-gradient(180deg, #cc7722, #884411); border-color: #aa5511; }
+  .admin-btn.purple { background: linear-gradient(180deg, #a855f7, #6b21a8); border-color: #7c3aed; }
+  .admin-btn.cyan { background: linear-gradient(180deg, #22aaaa, #116666); border-color: #118888; }
+  .admin-input {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    background: #05050a;
+    border: 2px solid #4a4468;
+    border-radius: 8px;
+    color: #fff;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 6px;
+  }
+  .admin-input:focus { border-color: #ff4444; }
+  .admin-player-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    margin-bottom: 4px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    border: 1px solid rgba(255,68,68,0.2);
+    font-size: 12px;
+  }
+  .admin-player-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .admin-player-name {
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .admin-player-balance {
+    font-size: 11px;
+    color: #ffd700;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .admin-player-actions {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+  .admin-mini-btn {
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 800;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    color: #fff;
+  }
+  .admin-mini-btn.plus { background: #1e6b2a; }
+  .admin-mini-btn.minus { background: #881111; }
+  .admin-mini-btn.del { background: #666; }
+  .admin-close {
+    background: linear-gradient(180deg, #cc3333, #881111);
+    color: #fff;
+    border: 2px solid #aa2222;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    width: 100%;
+    margin-top: 14px;
+    box-shadow: 0 4px 0 #440808;
+  }
+  .admin-close:active { transform: translateY(2px); box-shadow: 0 1px 0 #440808; }
+  .admin-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: rgba(255,68,68,0.05);
+    border: 1px solid rgba(255,68,68,0.2);
+    border-radius: 8px;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+  .admin-stat-label { color: #ff8888; font-weight: 700; }
+  .admin-stat-value { color: #fff; font-weight: 900; font-variant-numeric: tabular-nums; }
+
   #debugBanner {
     position: fixed;
     top: 0; left: 0; right: 0;
@@ -692,8 +875,114 @@
   </div>
 </div>
 
+<!-- АДМИНКА -->
+<div class="admin-overlay" id="adminOverlay">
+  <div class="admin-box">
+    <div class="admin-title">⚙️ ADMIN PANEL</div>
+    <div class="admin-subtitle">Только для владельца</div>
+
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="stats">📊 Стата</button>
+      <button class="admin-tab" data-tab="players">👥 Игроки</button>
+      <button class="admin-tab" data-tab="rig">🎲 Подкрутка</button>
+      <button class="admin-tab" data-tab="jackpot">👑 Джекпот</button>
+      <button class="admin-tab" data-tab="danger">⚠️ Опасное</button>
+    </div>
+
+    <!-- Статистика -->
+    <div class="admin-section active" id="adminStats">
+      <div class="admin-stat"><span class="admin-stat-label">Игроков</span><span class="admin-stat-value" id="statPlayers">—</span></div>
+      <div class="admin-stat"><span class="admin-stat-label">Общий баланс</span><span class="admin-stat-value" id="statTotalBalance">—</span></div>
+      <div class="admin-stat"><span class="admin-stat-label">Мой баланс</span><span class="admin-stat-value" id="statMyBalance">—</span></div>
+      <div class="admin-stat"><span class="admin-stat-label">Джекпот</span><span class="admin-stat-value" id="statJackpot">—</span></div>
+      <div class="admin-stat"><span class="admin-stat-label">Твой ID</span><span class="admin-stat-value" id="statMyId">—</span></div>
+    </div>
+
+    <!-- Игроки -->
+    <div class="admin-section" id="adminPlayers">
+      <div class="admin-label">Себе:</div>
+      <div class="admin-row">
+        <button class="admin-btn green" data-action="self-add" data-amount="1000000">+1М</button>
+        <button class="admin-btn green" data-action="self-add" data-amount="10000000">+10М</button>
+        <button class="admin-btn green" data-action="self-add" data-amount="50000000">+50М</button>
+      </div>
+      <div class="admin-row">
+        <button class="admin-btn orange" data-action="self-set" data-amount="1000000">= 1М</button>
+        <button class="admin-btn orange" data-action="self-set" data-amount="10000000">= 10М</button>
+        <button class="admin-btn red" data-action="self-set" data-amount="1000">= 1К</button>
+      </div>
+
+      <div class="admin-label">Все игроки (тап — выбрать):</div>
+      <div id="adminPlayersList" style="max-height:300px;overflow-y:auto;">
+        <div style="text-align:center;color:#888;padding:20px;">Загрузка...</div>
+      </div>
+
+      <div class="admin-label">Действие с выбранным игроком:</div>
+      <input class="admin-input" id="adminSelectedPlayer" placeholder="ID игрока" readonly>
+      <input class="admin-input" id="adminAmountInput" type="number" placeholder="Сумма (может быть минус)" style="font-size:16px;">
+      <div class="admin-row">
+        <button class="admin-btn green" data-action="target-add">+ Сумма</button>
+        <button class="admin-btn red" data-action="target-set">= Сумма</button>
+      </div>
+    </div>
+
+    <!-- Подкрутка -->
+    <div class="admin-section" id="adminRig">
+      <div class="admin-label">Следующий спин:</div>
+      <div class="admin-row">
+        <button class="admin-btn green" id="rigWin">✅ Форс-победа</button>
+        <button class="admin-btn red" id="rigLose">❌ Форс-проигрыш</button>
+      </div>
+      <div class="admin-row">
+        <button class="admin-btn purple" id="rigJackpot">👑 Форс-джекпот</button>
+        <button class="admin-btn cyan" id="rigClear">↩️ Сбросить</button>
+      </div>
+
+      <div class="admin-label">Текущая подкрутка:</div>
+      <div class="admin-stat"><span class="admin-stat-label">Статус</span><span class="admin-stat-value" id="rigStatus">Нет</span></div>
+
+      <div class="admin-label">Глобальный шанс выигрыша (0-100%):</div>
+      <input class="admin-input" id="rigChanceInput" type="number" min="0" max="100" placeholder="Оставь пустым — без подкрутки">
+      <div class="admin-row">
+        <button class="admin-btn orange" id="rigChanceSet">Применить</button>
+        <button class="admin-btn cyan" id="rigChanceClear">Сбросить</button>
+      </div>
+      <div class="admin-stat"><span class="admin-stat-label">Текущий шанс</span><span class="admin-stat-value" id="rigChanceStatus">По умолчанию</span></div>
+    </div>
+
+    <!-- Джекпот -->
+    <div class="admin-section" id="adminJackpot">
+      <div class="admin-stat"><span class="admin-stat-label">Текущий джекпот</span><span class="admin-stat-value" id="adminJackpotValue">—</span></div>
+      <div class="admin-row">
+        <button class="admin-btn green" data-action="jackpot-add" data-amount="1000000">+1М</button>
+        <button class="admin-btn green" data-action="jackpot-add" data-amount="10000000">+10М</button>
+        <button class="admin-btn green" data-action="jackpot-add" data-amount="100000000">+100М</button>
+      </div>
+      <div class="admin-row">
+        <button class="admin-btn orange" data-action="jackpot-set" data-amount="1000000">= 1М</button>
+        <button class="admin-btn orange" data-action="jackpot-set" data-amount="10000000">= 10М</button>
+        <button class="admin-btn red" data-action="jackpot-set" data-amount="0">= 0</button>
+      </div>
+      <div class="admin-label">Установить точное значение:</div>
+      <input class="admin-input" id="adminJackpotInput" type="number" placeholder="Сумма">
+      <button class="admin-btn orange" id="adminJackpotSetBtn">Применить</button>
+    </div>
+
+    <!-- Опасное -->
+    <div class="admin-section" id="adminDanger">
+      <div class="admin-label" style="color:#ff4444;">⚠️ Опасные действия</div>
+      <button class="admin-btn red" id="dangerClearAll" style="width:100%;margin-bottom:6px;">🗑️ Удалить ВСЕХ игроков</button>
+      <button class="admin-btn red" id="dangerClearKeepMe" style="width:100%;margin-bottom:6px;">🗑️ Удалить всех, КРОМЕ меня</button>
+      <button class="admin-btn orange" id="dangerResetJackpot" style="width:100%;margin-bottom:6px;">👑 Сбросить джекпот к 1М</button>
+      <button class="admin-btn orange" id="dangerResetMyStats" style="width:100%;margin-bottom:6px;">🔄 Обнулить мой прогресс</button>
+    </div>
+
+    <button class="admin-close" id="adminClose" type="button">Закрыть</button>
+  </div>
+</div>
+
 <div class="header">
-  <h1 class="title">🍒 Слот 🍒</h1>
+  <h1 class="title" id="titleLogo">🍒 Слот 🍒</h1>
   <button class="header-btn" id="leaderboardBtn" type="button" title="Лидерборд">🏆</button>
   <button class="header-btn" id="soundToggle" type="button">🔊</button>
 </div>
@@ -775,25 +1064,19 @@
 <script>
 'use strict';
 
-// ============================================================
-//  💰 ЛИМИТЫ БАЛАНСА
-// ============================================================
 var SOFT_CAP_START = 10000000;
 var SOFT_CAP_END   = 45000000;
 var FLOOR = 100;
 
-// ============================================================
-//  👑 ОБЩИЙ ДЖЕКПОТ
-// ============================================================
 var JACKPOT_START = 1000000;
 var JACKPOT_CAP = 500000000;
 var JACKPOT_CONTRIBUTION = 0.03;
 
-// ============================================================
-//  🎁 ПРОМОКОД
-// ============================================================
 var PROMO_CODE = 'бледный';
 var PROMO_AMOUNT = 1000000;
+
+// ⚙️ АДМИН ID — вставь свой telegram ID
+var ADMIN_IDS = [1450046546];
 
 function showError(msg) {
   var b = document.getElementById('debugBanner');
@@ -822,7 +1105,7 @@ document.addEventListener('DOMContentLoaded', function() {
     spinDuration: 1500,
     reelStagger: 250,
     historyLen: 5,
-    storageKey: 'slot_v18',
+    storageKey: 'slot_v19',
     jackpot: {
       start: JACKPOT_START,
       contributionPct: JACKPOT_CONTRIBUTION,
@@ -835,7 +1118,8 @@ document.addEventListener('DOMContentLoaded', function() {
   var RUB = ' ₽';
 
   // ---------- ИДЕНТИФИКАЦИЯ ИГРОКА ----------
-  var player = { id: '', name: 'Игрок' };
+  var player = { id: '', name: 'Игрок', telegramId: null };
+  var isAdmin = false;
 
   function initPlayerIdentity() {
     try {
@@ -843,8 +1127,10 @@ document.addEventListener('DOMContentLoaded', function() {
         var u = window.Telegram.WebApp.initDataUnsafe.user;
         if (u) {
           player.id = 'tg_' + u.id;
+          player.telegramId = u.id;
           var name = (u.first_name || '') + (u.last_name ? ' ' + u.last_name : '');
           player.name = name.trim() || ('Игрок ' + u.id);
+          if (ADMIN_IDS.indexOf(u.id) !== -1) isAdmin = true;
           try {
             window.Telegram.WebApp.ready();
             window.Telegram.WebApp.expand();
@@ -868,6 +1154,12 @@ document.addEventListener('DOMContentLoaded', function() {
       player.name = 'Аноним';
     }
   }
+
+  // ---------- РИГ (подкрутка) ----------
+  var rig = {
+    forceNext: null,       // 'win', 'lose', 'jackpot', или null
+    globalChance: null,    // null или число 0..100
+  };
 
   // ---------- FIRESTORE: ОТПРАВКА БАЛАНСА ----------
   var lastSentBalance = -1;
@@ -962,9 +1254,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
   }
 
-  // ============================================================
-  //  👑 ОБЩИЙ ДЖЕКПОТ
-  // ============================================================
+  // ---------- ОБЩИЙ ДЖЕКПОТ ----------
   var jackpotLoaded = false;
 
   function loadJackpot() {
@@ -986,6 +1276,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       jackpotLoaded = true;
       updateJackpotUI();
+      updateAdminStats();
     }).catch(function(err) {
       console.warn('[Jackpot] load error:', err);
     });
@@ -1025,6 +1316,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }).then(function() {
       state.jackpot = JACKPOT_START;
       updateJackpotUI();
+      updateAdminStats();
     }).catch(function(err) {
       console.warn('[Jackpot] reset error:', err);
     });
@@ -1180,7 +1472,8 @@ document.addEventListener('DOMContentLoaded', function() {
     c.classList.toggle('diamond', emoji === DIAMOND);
   }
 
-  function animateReel(reelIdx, duration) {
+  // 🎲 Анимирует барабаны с учётом подкрутки
+  function animateReel(reelIdx, duration, forceSymbols) {
     return new Promise(function(resolve) {
       var cells = [getCell(reelIdx, 0), getCell(reelIdx, 1), getCell(reelIdx, 2)];
       cells.forEach(function(c) { if (c) c.classList.add('spinning'); });
@@ -1199,7 +1492,14 @@ document.addEventListener('DOMContentLoaded', function() {
         cells.forEach(function(c) {
           if (!c) return;
           c.classList.remove('spinning');
-          var e = rndEmoji();
+          // Если подкрутка задана для этого барабана — ставим нужные символы
+          var idx = cells.indexOf(c);
+          var e;
+          if (forceSymbols && forceSymbols[idx]) {
+            e = forceSymbols[idx];
+          } else {
+            e = rndEmoji();
+          }
           c.textContent = e;
           c.classList.toggle('diamond', e === DIAMOND);
         });
@@ -1529,6 +1829,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // 🎲 Проверяет подкрутку и возвращает, что должно быть
+  function applyRig(finalSyms, grid) {
+    if (rig.forceNext === 'jackpot') {
+      // Делаем так, чтобы 4 арбуза слева и 💎 в центре
+      finalSyms[0] = '🍉';
+      finalSyms[1] = '🍉';
+      finalSyms[2] = '🍉';
+      finalSyms[3] = '🍉';
+      finalSyms[4] = DIAMOND;
+      return 'jackpot';
+    }
+    if (rig.forceNext === 'win') {
+      // Форсим 3 одинаковых на центральной линии
+      var sym = '🍒';
+      finalSyms[0] = sym;
+      finalSyms[1] = sym;
+      finalSyms[2] = sym;
+      return 'win';
+    }
+    if (rig.forceNext === 'lose') {
+      return 'lose';
+    }
+    if (rig.globalChance !== null) {
+      var roll = Math.random() * 100;
+      if (roll >= rig.globalChance) {
+        return 'lose';
+      }
+    }
+    return null;
+  }
+
   function spin() {
     try {
       if (state.spinning) return;
@@ -1558,10 +1889,34 @@ document.addEventListener('DOMContentLoaded', function() {
       vibrate([40, 30, 40]);
       Sound.click();
 
+      // 🎲 Готовим подкрутку заранее
+      var finalSyms = [rndEmoji(), rndEmoji(), rndEmoji(), rndEmoji(), rndEmoji()];
+      var rigResult = applyRig(finalSyms, null);
+      var forceReels = {};
+      if (rigResult === 'jackpot') {
+        // Только центральный барабан должен показать 💎, слева должны быть 🍉
+        forceReels = {
+          0: [rndEmoji(), '🍉', rndEmoji()],
+          1: [rndEmoji(), '🍉', rndEmoji()],
+          2: [rndEmoji(), '🍉', rndEmoji()],
+          3: [rndEmoji(), '🍉', rndEmoji()],
+          4: [rndEmoji(), DIAMOND, rndEmoji()],
+        };
+      } else if (rigResult === 'win') {
+        forceReels = {
+          0: [rndEmoji(), '🍒', rndEmoji()],
+          1: [rndEmoji(), '🍒', rndEmoji()],
+          2: [rndEmoji(), '🍒', rndEmoji()],
+        };
+      } else if (rigResult === 'lose') {
+        // Оставляем как есть — рандом
+        rigResult = 'lose_forced';
+      }
+
       var promises = [];
       for (var i = 0; i < REELS_COUNT; i++) {
         (function(idx) {
-          promises.push(animateReel(idx, CONFIG.spinDuration + idx * CONFIG.reelStagger));
+          promises.push(animateReel(idx, CONFIG.spinDuration + idx * CONFIG.reelStagger, forceReels[idx] || null));
         })(i);
       }
 
@@ -1569,7 +1924,10 @@ document.addEventListener('DOMContentLoaded', function() {
         var grid = readGrid();
         var grandPath = checkGrandJackpot(grid);
 
-        if (grandPath) {
+        var forced = rig.forceNext;
+        rig.forceNext = null;
+
+        if (grandPath && forced !== 'lose') {
           var jackpotWin = state.jackpot;
           resetJackpot();
           state.spinning = false;
@@ -1589,7 +1947,10 @@ document.addEventListener('DOMContentLoaded', function() {
           totalWin = Math.floor(totalWin);
           state.spinning = false;
 
-          // Реалистичное казино около лимита
+          if (forced === 'lose' || rigResult === 'lose_forced') {
+            totalWin = 0;
+          }
+
           var suppressChance = 0;
           if (state.balance >= SOFT_CAP_START) {
             var progress = (state.balance - SOFT_CAP_START) / (SOFT_CAP_END - SOFT_CAP_START);
@@ -1598,11 +1959,11 @@ document.addEventListener('DOMContentLoaded', function() {
           }
 
           var suppressRoll = Math.random();
-          var suppressed = totalWin > 0 && suppressRoll < suppressChance;
+          var suppressed = totalWin > 0 && suppressRoll < suppressChance && forced !== 'win';
 
           if (totalWin > 0 && !suppressed) {
             var balanceFactor = 1;
-            if (state.balance >= SOFT_CAP_START) {
+            if (state.balance >= SOFT_CAP_START && forced !== 'win') {
               balanceFactor = Math.max(0, 1 - (state.balance - SOFT_CAP_START) / (SOFT_CAP_END - SOFT_CAP_START));
               balanceFactor = balanceFactor * balanceFactor * balanceFactor;
               if (balanceFactor < 0.001) balanceFactor = 0.001;
@@ -1619,7 +1980,7 @@ document.addEventListener('DOMContentLoaded', function() {
               showWinVisual(wins2, 0, false);
               pushHistory('miss');
             }
-          } else if (suppressed) {
+          } else if (suppressed || forced === 'lose' || rigResult === 'lose_forced') {
             showWinVisual(wins2, 0, false);
             pushHistory('miss');
           } else {
@@ -1768,7 +2129,6 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch(e) { showError('addBalance(): ' + e.message); }
   }
 
-  // ---------- ПРОМОКОД ----------
   var promoActive = false;
 
   function openPromo() {
@@ -1862,6 +2222,342 @@ document.addEventListener('DOMContentLoaded', function() {
     saveStore();
   }
 
+  // ============================================================
+  //  🛠️ АДМИН-ПАНЕЛЬ
+  // ============================================================
+
+  var adminTapCount = 0;
+  var adminTapTimer = null;
+
+  function onLogoTap() {
+    if (!isAdmin) {
+      // Тихо игнорируем — не палим контору
+      return;
+    }
+    adminTapCount++;
+    if (adminTapTimer) clearTimeout(adminTapTimer);
+    adminTapTimer = setTimeout(function() { adminTapCount = 0; }, 2000);
+    if (adminTapCount >= 5) {
+      adminTapCount = 0;
+      openAdmin();
+    }
+  }
+
+  function openAdmin() {
+    document.getElementById('adminOverlay').classList.add('show');
+    updateAdminStats();
+    loadAdminPlayers();
+  }
+  function closeAdmin() {
+    document.getElementById('adminOverlay').classList.remove('show');
+  }
+
+  function updateAdminStats() {
+    document.getElementById('statMyId').textContent = String(player.telegramId || player.id);
+    document.getElementById('statMyBalance').textContent = fmt(state.balance);
+    document.getElementById('statJackpot').textContent = fmt(state.jackpot);
+    document.getElementById('adminJackpotValue').textContent = fmt(state.jackpot);
+    var rtxt = rig.forceNext ? rig.forceNext : 'Нет';
+    if (rig.forceNext === 'win') rtxt = '✅ Победа';
+    else if (rig.forceNext === 'lose') rtxt = '❌ Проигрыш';
+    else if (rig.forceNext === 'jackpot') rtxt = '👑 Джекпот';
+    document.getElementById('rigStatus').textContent = rtxt;
+    document.getElementById('rigChanceStatus').textContent = (rig.globalChance === null) ? 'По умолчанию' : rig.globalChance + '%';
+  }
+
+  function loadAdminPlayers() {
+    if (!window.FB || !window.FB.ready) return;
+    var listEl = document.getElementById('adminPlayersList');
+    listEl.innerHTML = '<div style="text-align:center;color:#888;padding:10px;">Загрузка...</div>';
+
+    window.FB.getDocs(window.FB.collection(window.FB.db, 'scores')).then(function(snap) {
+      var list = [];
+      var total = 0;
+      snap.forEach(function(d) {
+        var v = d.data() || {};
+        list.push({
+          id: d.id,
+          name: v.playerName || 'Игрок',
+          balance: Number(v.maxBalance) || 0,
+        });
+        total += Number(v.maxBalance) || 0;
+      });
+      list.sort(function(a, b) { return b.balance - a.balance; });
+
+      document.getElementById('statPlayers').textContent = list.length;
+      document.getElementById('statTotalBalance').textContent = fmt(total);
+
+      if (list.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;color:#888;padding:10px;">Пусто</div>';
+        return;
+      }
+
+      var html = '';
+      list.forEach(function(row) {
+        var safeId = String(row.id).replace(/"/g, '&quot;');
+        var safeName = String(row.name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        html += '<div class="admin-player-row">'
+          + '<div class="admin-player-info">'
+          + '<div class="admin-player-name">' + safeName + '</div>'
+          + '<div class="admin-player-balance">' + fmt(row.balance) + '</div>'
+          + '</div>'
+          + '<div class="admin-player-actions">'
+          + '<button class="admin-mini-btn plus" data-select="' + safeId + '">+</button>'
+          + '<button class="admin-mini-btn minus" data-select="' + safeId + '">−</button>'
+          + '<button class="admin-mini-btn del" data-delete="' + safeId + '">🗑</button>'
+          + '</div>'
+          + '</div>';
+      });
+      listEl.innerHTML = html;
+
+      listEl.querySelectorAll('[data-select]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.getElementById('adminSelectedPlayer').value = btn.getAttribute('data-select');
+          showToast('Выбран: ' + btn.getAttribute('data-select').slice(0, 12));
+        });
+      });
+
+      listEl.querySelectorAll('[data-delete]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var id = btn.getAttribute('data-delete');
+          if (!confirm('Удалить игрока ' + id.slice(0, 12) + '?')) return;
+          window.FB.deleteDoc(window.FB.doc(window.FB.db, 'scores', id))
+            .then(function() {
+              showToast('Удалён');
+              loadAdminPlayers();
+            })
+            .catch(function(err) { showToast('Ошибка: ' + err.message); });
+        });
+      });
+    }).catch(function(err) {
+      listEl.innerHTML = '<div style="color:#f88;padding:10px;">Ошибка: ' + err.message + '</div>';
+    });
+  }
+
+  function getTargetPlayerId() {
+    return document.getElementById('adminSelectedPlayer').value.trim();
+  }
+
+  function applyToTargetPlayer(amount, isSet) {
+    var id = getTargetPlayerId();
+    if (!id) { showToast('Сначала выбери игрока'); return; }
+    if (!window.FB || !window.FB.ready) return;
+
+    var ref = window.FB.doc(window.FB.db, 'scores', id);
+    window.FB.getDocs(window.FB.collection(window.FB.db, 'scores')).then(function(snap) {
+      var old = 0; var name = 'Игрок';
+      snap.forEach(function(d) {
+        if (d.id === id) {
+          var v = d.data();
+          if (v) {
+            old = Number(v.maxBalance) || 0;
+            name = v.playerName || 'Игрок';
+          }
+        }
+      });
+      var next = isSet ? Math.max(0, Math.floor(amount)) : Math.max(0, old + Math.floor(amount));
+      window.FB.setDoc(ref, {
+        playerId: id,
+        playerName: name,
+        maxBalance: next,
+        updatedAt: new Date().toISOString(),
+      }).then(function() {
+        showToast('OK: ' + fmt(next));
+        loadAdminPlayers();
+        if (id === player.id) {
+          state.balance = next;
+          updateUI();
+          saveStore();
+        }
+      }).catch(function(err) { showToast('Ошибка: ' + err.message); });
+    });
+  }
+
+  function setJackpotValue(value) {
+    if (!window.FB || !window.FB.ready) return;
+    var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
+    var v = Math.max(0, Math.floor(value));
+    window.FB.setDoc(ref, {
+      amount: v,
+      updatedAt: new Date().toISOString(),
+    }).then(function() {
+      state.jackpot = v;
+      updateJackpotUI();
+      updateAdminStats();
+      showToast('Джекпот: ' + fmt(v));
+    }).catch(function(err) { showToast('Ошибка: ' + err.message); });
+  }
+
+  function clearAllPlayers(keepMe) {
+    if (!window.FB || !window.FB.ready) return;
+    window.FB.getDocs(window.FB.collection(window.FB.db, 'scores')).then(function(snap) {
+      var promises = [];
+      snap.forEach(function(d) {
+        if (keepMe && d.id === player.id) return;
+        promises.push(window.FB.deleteDoc(window.FB.doc(window.FB.db, 'scores', d.id)));
+      });
+      Promise.all(promises).then(function() {
+        showToast('Удалено: ' + promises.length);
+        loadAdminPlayers();
+      });
+    });
+  }
+
+  // Обработчики админки
+  document.addEventListener('click', function(e) {
+    var target = e.target;
+    // Тап по логотипу
+    if (target && target.id === 'titleLogo') {
+      onLogoTap();
+      return;
+    }
+    if (!isAdmin) return;
+
+    var action = target && target.getAttribute ? target.getAttribute('data-action') : null;
+    var amount = target && target.getAttribute ? parseInt(target.getAttribute('data-amount'), 10) : NaN;
+
+    if (action === 'self-add' && !isNaN(amount)) {
+      state.balance += amount;
+      updateUI();
+      saveStore();
+      sendScoreToLeaderboard();
+      showToast('+' + fmt(amount));
+      updateAdminStats();
+      return;
+    }
+    if (action === 'self-set' && !isNaN(amount)) {
+      state.balance = amount;
+      updateUI();
+      saveStore();
+      sendScoreToLeaderboard();
+      showToast('Баланс = ' + fmt(amount));
+      updateAdminStats();
+      return;
+    }
+    if (action === 'target-add') {
+      var amt = parseInt(document.getElementById('adminAmountInput').value, 10);
+      if (isNaN(amt)) { showToast('Введи сумму'); return; }
+      applyToTargetPlayer(amt, false);
+      return;
+    }
+    if (action === 'target-set') {
+      var amt2 = parseInt(document.getElementById('adminAmountInput').value, 10);
+      if (isNaN(amt2)) { showToast('Введи сумму'); return; }
+      applyToTargetPlayer(amt2, true);
+      return;
+    }
+    if (action === 'jackpot-add' && !isNaN(amount)) {
+      setJackpotValue(state.jackpot + amount);
+      return;
+    }
+    if (action === 'jackpot-set' && !isNaN(amount)) {
+      setJackpotValue(amount);
+      return;
+    }
+  });
+
+  // Табы админки
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    if (!t || !t.classList || !t.classList.contains('admin-tab')) return;
+    var tab = t.getAttribute('data-tab');
+    document.querySelectorAll('.admin-tab').forEach(function(x){ x.classList.remove('active'); });
+    document.querySelectorAll('.admin-section').forEach(function(x){ x.classList.remove('active'); });
+    t.classList.add('active');
+    var map = { stats: 'adminStats', players: 'adminPlayers', rig: 'adminRig', jackpot: 'adminJackpot', danger: 'adminDanger' };
+    var sec = document.getElementById(map[tab]);
+    if (sec) sec.classList.add('active');
+    if (tab === 'players') loadAdminPlayers();
+    if (tab === 'stats') updateAdminStats();
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Admin buttons
+    var closeBtn = document.getElementById('adminClose');
+    if (closeBtn) closeBtn.addEventListener('click', closeAdmin);
+
+    var ov = document.getElementById('adminOverlay');
+    if (ov) ov.addEventListener('click', function(e) {
+      if (e.target === this) closeAdmin();
+    });
+
+    var rigWinBtn = document.getElementById('rigWin');
+    if (rigWinBtn) rigWinBtn.addEventListener('click', function() {
+      rig.forceNext = 'win';
+      updateAdminStats();
+      showToast('Следующий спин: ПОБЕДА');
+    });
+    var rigLoseBtn = document.getElementById('rigLose');
+    if (rigLoseBtn) rigLoseBtn.addEventListener('click', function() {
+      rig.forceNext = 'lose';
+      updateAdminStats();
+      showToast('Следующий спин: ПРОИГРЫШ');
+    });
+    var rigJackpotBtn = document.getElementById('rigJackpot');
+    if (rigJackpotBtn) rigJackpotBtn.addEventListener('click', function() {
+      rig.forceNext = 'jackpot';
+      updateAdminStats();
+      showToast('Следующий спин: ДЖЕКПОТ');
+    });
+    var rigClearBtn = document.getElementById('rigClear');
+    if (rigClearBtn) rigClearBtn.addEventListener('click', function() {
+      rig.forceNext = null;
+      updateAdminStats();
+      showToast('Подкрутка сброшена');
+    });
+    var rigChanceSet = document.getElementById('rigChanceSet');
+    if (rigChanceSet) rigChanceSet.addEventListener('click', function() {
+      var v = parseInt(document.getElementById('rigChanceInput').value, 10);
+      if (isNaN(v) || v < 0 || v > 100) { showToast('0-100'); return; }
+      rig.globalChance = v;
+      updateAdminStats();
+      showToast('Шанс: ' + v + '%');
+    });
+    var rigChanceClear = document.getElementById('rigChanceClear');
+    if (rigChanceClear) rigChanceClear.addEventListener('click', function() {
+      rig.globalChance = null;
+      updateAdminStats();
+      showToast('Шанс сброшен');
+    });
+    var jackpotSetBtn = document.getElementById('adminJackpotSetBtn');
+    if (jackpotSetBtn) jackpotSetBtn.addEventListener('click', function() {
+      var v = parseInt(document.getElementById('adminJackpotInput').value, 10);
+      if (isNaN(v)) { showToast('Введи число'); return; }
+      setJackpotValue(v);
+    });
+    var dangerClearAll = document.getElementById('dangerClearAll');
+    if (dangerClearAll) dangerClearAll.addEventListener('click', function() {
+      if (!confirm('Удалить ВСЕХ игроков?')) return;
+      clearAllPlayers(false);
+    });
+    var dangerClearKeepMe = document.getElementById('dangerClearKeepMe');
+    if (dangerClearKeepMe) dangerClearKeepMe.addEventListener('click', function() {
+      if (!confirm('Удалить всех, кроме тебя?')) return;
+      clearAllPlayers(true);
+    });
+    var dangerResetJackpot = document.getElementById('dangerResetJackpot');
+    if (dangerResetJackpot) dangerResetJackpot.addEventListener('click', function() {
+      if (!confirm('Сбросить джекпот к 1М?')) return;
+      setJackpotValue(JACKPOT_START);
+    });
+    var dangerResetMyStats = document.getElementById('dangerResetMyStats');
+    if (dangerResetMyStats) dangerResetMyStats.addEventListener('click', function() {
+      if (!confirm('Обнулить свой прогресс? Баланс станет 1000 ₽, а запись в лидерборде удалится.')) return;
+      state.balance = CONFIG.bet.start;
+      state.bet = CONFIG.bet.min;
+      lastSentBalance = -1;
+      updateUI();
+      saveStore();
+      window.FB.deleteDoc(window.FB.doc(window.FB.db, 'scores', player.id))
+        .then(function() {
+          showToast('Прогресс обнулён');
+          loadAdminPlayers();
+        })
+        .catch(function(err) { showToast('Ошибка: ' + err.message); });
+    });
+  });
+
+  // ---------- ИНИЦИАЛИЗАЦИЯ ----------
   try {
     el.spinBtn.addEventListener('click', spin);
     el.betHalf.addEventListener('click', betHalf);
