@@ -329,6 +329,10 @@
     color: #ff8844;
     text-shadow: 0 0 14px rgba(255,136,68,1);
   }
+  .message.promo {
+    color: #a855f7;
+    text-shadow: 0 0 14px #a855f7, 0 0 28px #a855f7;
+  }
 
   .buttons { display: flex; gap: 8px; }
   button.main {
@@ -647,6 +651,22 @@
 <div id="debugBanner"></div>
 <div class="gold-rain" id="goldRain"></div>
 
+<!-- Модалка промокода -->
+<div class="captcha-overlay" id="promoOverlay">
+  <div class="captcha-box">
+    <div class="captcha-title">🎁 Промокод</div>
+    <div class="captcha-prize" style="color:#a855f7;">+1 000 000 ₽</div>
+    <div class="captcha-question" style="font-size:14px; color:#aaa; margin-bottom:14px; font-weight:600; letter-spacing:1px;">Введи промокод</div>
+    <input class="captcha-input" id="promoInput" type="text" autocomplete="off" placeholder="Промокод" style="text-transform:lowercase; font-size:20px;">
+    <div class="captcha-error" id="promoError"></div>
+    <div class="captcha-buttons">
+      <button class="captcha-btn cancel" id="promoCancel" type="button">Отмена</button>
+      <button class="captcha-btn submit" id="promoSubmit" type="button" style="background: linear-gradient(180deg, #a855f7, #6b21a8); border-color: #7c3aed; box-shadow: 0 4px 0 #3f1069;">Активировать</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка капчи -->
 <div class="captcha-overlay" id="captchaOverlay">
   <div class="captcha-box">
     <div class="captcha-title">Подтверждение</div>
@@ -691,6 +711,7 @@
       <span class="label">💰</span>
       <span class="value" id="balance">1 000 ₽</span>
       <button class="add-btn" id="addBtn" type="button">+1000</button>
+      <button class="add-btn" id="promoBtn" type="button" style="background: linear-gradient(180deg, #a855f7, #6b21a8); border-color: #7c3aed;">🎁</button>
     </div>
     <div class="info-group" id="betGroup">
       <span class="label">🎯</span>
@@ -757,16 +778,22 @@
 // ============================================================
 //  💰 ЛИМИТЫ БАЛАНСА
 // ============================================================
-var HARD_CAP_MIN = 49000000;
-var HARD_CAP_MAX = 51000000;
+var SOFT_CAP_START = 10000000;
+var SOFT_CAP_END   = 45000000;
 var FLOOR = 100;
 
 // ============================================================
 //  👑 ОБЩИЙ ДЖЕКПОТ
 // ============================================================
-var JACKPOT_START = 1000000;        // стартовый банк
-var JACKPOT_CAP = 500000000;        // потолок банка
-var JACKPOT_CONTRIBUTION = 0.03;    // 3% от ставки идёт в банк
+var JACKPOT_START = 1000000;
+var JACKPOT_CAP = 500000000;
+var JACKPOT_CONTRIBUTION = 0.03;
+
+// ============================================================
+//  🎁 ПРОМОКОД
+// ============================================================
+var PROMO_CODE = 'бледный';
+var PROMO_AMOUNT = 1000000;
 
 function showError(msg) {
   var b = document.getElementById('debugBanner');
@@ -795,7 +822,7 @@ document.addEventListener('DOMContentLoaded', function() {
     spinDuration: 1500,
     reelStagger: 250,
     historyLen: 5,
-    storageKey: 'slot_v17',
+    storageKey: 'slot_v18',
     jackpot: {
       start: JACKPOT_START,
       contributionPct: JACKPOT_CONTRIBUTION,
@@ -936,11 +963,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // ============================================================
-  //  👑 ОБЩИЙ ДЖЕКПОТ — FIRESTORE
+  //  👑 ОБЩИЙ ДЖЕКПОТ
   // ============================================================
   var jackpotLoaded = false;
 
-  // Читает актуальный размер банка
   function loadJackpot() {
     if (!window.FB || !window.FB.ready) return;
     var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
@@ -952,7 +978,6 @@ document.addEventListener('DOMContentLoaded', function() {
       if (found && typeof found.amount === 'number') {
         state.jackpot = found.amount;
       } else {
-        // Первый запуск — создаём документ
         window.FB.setDoc(ref, {
           amount: JACKPOT_START,
           updatedAt: new Date().toISOString(),
@@ -966,7 +991,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Прибавляет вклад в банк атомарно (транзакция)
   function contributeToJackpot(amount) {
     if (!window.FB || !window.FB.ready) return;
     if (!jackpotLoaded) return;
@@ -992,7 +1016,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Обнуляет банк после выигрыша
   function resetJackpot() {
     if (!window.FB || !window.FB.ready) return;
     var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
@@ -1007,7 +1030,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Автообновление банка раз в 10 секунд
   setInterval(function() {
     if (!state.spinning) loadJackpot();
   }, 10000);
@@ -1357,14 +1379,14 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function setMessage(text, cls, color) {
-    el.message.classList.remove('win', 'jackpot', 'limit');
+    el.message.classList.remove('win', 'jackpot', 'limit', 'promo');
     el.message.textContent = text;
     el.message.style.color = color || '#d4af37';
     if (cls) el.message.classList.add(cls);
   }
 
   function clearMessage() {
-    el.message.classList.remove('win', 'jackpot', 'limit');
+    el.message.classList.remove('win', 'jackpot', 'limit', 'promo');
     el.message.textContent = 'Нажми КРУТИТЬ!';
     el.message.style.color = '#d4af37';
   }
@@ -1407,10 +1429,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function showWinVisual(wins, totalWin, isJackpot) {
-    if (state.balance >= HARD_CAP_MIN && !isJackpot) {
-      totalWin = 0;
-    }
-
     clearAllTimers();
     document.querySelectorAll('.cell.hit').forEach(function(c){ c.classList.remove('hit'); });
     clearLightning();
@@ -1428,7 +1446,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (totalWin > 0) {
       setMessage(winText, 'win', '#ffd700');
     } else {
-      setMessage('Потолок', 'limit', '#ff8844');
+      setMessage('Промах!', null, '#d4af37');
     }
 
     if (isJackpot) {
@@ -1445,6 +1463,8 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (totalWin > 0) {
       Sound.win();
       vibrate([60, 30, 60]);
+    } else {
+      Sound.miss();
     }
 
     var lifetime = isJackpot ? 5000 : 2200;
@@ -1525,7 +1545,6 @@ document.addEventListener('DOMContentLoaded', function() {
       state.balance -= state.bet;
       state.outOfFunds = false;
 
-      // Вклад в общий джекпот
       var contribution = state.bet * JACKPOT_CONTRIBUTION;
       state.jackpot += contribution;
       updateJackpotUI();
@@ -1551,26 +1570,16 @@ document.addEventListener('DOMContentLoaded', function() {
         var grandPath = checkGrandJackpot(grid);
 
         if (grandPath) {
-          // Выигрыш общего джекпота
           var jackpotWin = state.jackpot;
           resetJackpot();
           state.spinning = false;
-
-          if (state.balance < HARD_CAP_MIN) {
-            var allowedJackpot = Math.min(jackpotWin, HARD_CAP_MAX - state.balance);
-            state.balance += allowedJackpot;
-            var wins = [{
-              symbol: DIAMOND, length: 5, path: grandPath,
-              payout: allowedJackpot, isJackpot: true,
-            }];
-            showWinVisual(wins, allowedJackpot, true);
-          } else {
-            var wins = [{
-              symbol: DIAMOND, length: 5, path: grandPath,
-              payout: 0, isJackpot: true,
-            }];
-            showWinVisual(wins, 0, true);
-          }
+          var allowedJackpot = jackpotWin;
+          state.balance += allowedJackpot;
+          var wins = [{
+            symbol: DIAMOND, length: 5, path: grandPath,
+            payout: allowedJackpot, isJackpot: true,
+          }];
+          showWinVisual(wins, allowedJackpot, true);
           pushHistory('jackpot');
         } else {
           var allWins = findAllWinsLR(grid);
@@ -1580,12 +1589,26 @@ document.addEventListener('DOMContentLoaded', function() {
           totalWin = Math.floor(totalWin);
           state.spinning = false;
 
-          if (totalWin > 0) {
-            if (state.balance >= HARD_CAP_MIN) {
-              totalWin = 0;
-            } else if (state.balance + totalWin > HARD_CAP_MAX) {
-              totalWin = HARD_CAP_MAX - state.balance;
+          // Реалистичное казино около лимита
+          var suppressChance = 0;
+          if (state.balance >= SOFT_CAP_START) {
+            var progress = (state.balance - SOFT_CAP_START) / (SOFT_CAP_END - SOFT_CAP_START);
+            if (progress > 1) progress = 1;
+            suppressChance = progress * 0.98;
+          }
+
+          var suppressRoll = Math.random();
+          var suppressed = totalWin > 0 && suppressRoll < suppressChance;
+
+          if (totalWin > 0 && !suppressed) {
+            var balanceFactor = 1;
+            if (state.balance >= SOFT_CAP_START) {
+              balanceFactor = Math.max(0, 1 - (state.balance - SOFT_CAP_START) / (SOFT_CAP_END - SOFT_CAP_START));
+              balanceFactor = balanceFactor * balanceFactor * balanceFactor;
+              if (balanceFactor < 0.001) balanceFactor = 0.001;
             }
+
+            totalWin = Math.floor(totalWin * balanceFactor);
 
             if (totalWin > 0) {
               state.balance += totalWin;
@@ -1594,8 +1617,11 @@ document.addEventListener('DOMContentLoaded', function() {
               pushHistory(anyBig ? 'big' : 'win');
             } else {
               showWinVisual(wins2, 0, false);
-              pushHistory('win');
+              pushHistory('miss');
             }
+          } else if (suppressed) {
+            showWinVisual(wins2, 0, false);
+            pushHistory('miss');
           } else {
             showMiss();
             pushHistory('miss');
@@ -1721,19 +1747,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     vibrate(30);
     Sound.win();
-    var toAdd = CONFIG.bet.add;
-    if (state.balance + toAdd > HARD_CAP_MAX) {
-      toAdd = Math.max(0, HARD_CAP_MAX - state.balance);
-    }
-    state.balance += toAdd;
+    state.balance += CONFIG.bet.add;
     state.outOfFunds = false;
     closeCaptcha();
     clearMessage();
-    if (toAdd > 0) {
-      setMessage('+' + fmt(toAdd) + ' зачислено!', 'win', '#3fa04a');
-    } else {
-      setMessage('Потолок достигнут', 'limit', '#ff8844');
-    }
+    setMessage('+' + fmt(CONFIG.bet.add) + ' зачислено!', 'win', '#3fa04a');
     messageTimer = setTimeout(function() {
       clearMessage();
       messageTimer = null;
@@ -1748,6 +1766,93 @@ document.addEventListener('DOMContentLoaded', function() {
       if (state.spinning) return;
       openCaptcha();
     } catch(e) { showError('addBalance(): ' + e.message); }
+  }
+
+  // ---------- ПРОМОКОД ----------
+  var promoActive = false;
+
+  function openPromo() {
+    if (state.spinning) return;
+
+    var used = false;
+    try {
+      used = localStorage.getItem('slot_promo_used') === '1';
+    } catch(e) {}
+
+    if (used) {
+      showToast('Промокод уже использован');
+      return;
+    }
+
+    promoActive = true;
+    var overlay = document.getElementById('promoOverlay');
+    var input = document.getElementById('promoInput');
+    var err = document.getElementById('promoError');
+    input.value = '';
+    err.textContent = '';
+    input.classList.remove('error');
+    overlay.classList.add('show');
+    setTimeout(function() {
+      try { input.focus(); } catch(e) {}
+    }, 100);
+  }
+
+  function closePromo() {
+    promoActive = false;
+    document.getElementById('promoOverlay').classList.remove('show');
+    document.getElementById('promoInput').blur();
+  }
+
+  function submitPromo() {
+    if (!promoActive) return;
+    var input = document.getElementById('promoInput');
+    var err = document.getElementById('promoError');
+    var raw = String(input.value || '').trim().toLowerCase();
+
+    if (!raw) {
+      err.textContent = 'Введи промокод';
+      input.classList.add('error');
+      setTimeout(function(){ input.classList.remove('error'); }, 400);
+      return;
+    }
+
+    if (raw !== PROMO_CODE) {
+      err.textContent = 'Неверный промокод';
+      input.classList.add('error');
+      input.value = '';
+      setTimeout(function(){ input.classList.remove('error'); }, 400);
+      vibrate(150);
+      return;
+    }
+
+    vibrate([50, 50, 100]);
+    Sound.win();
+    state.balance += PROMO_AMOUNT;
+    state.outOfFunds = false;
+
+    try {
+      localStorage.setItem('slot_promo_used', '1');
+    } catch(e) {}
+
+    closePromo();
+    clearMessage();
+    setMessage('🎁 +' + fmt(PROMO_AMOUNT) + ' по промокоду!', 'promo', '#a855f7');
+    messageTimer = setTimeout(function() {
+      clearMessage();
+      messageTimer = null;
+    }, 3000);
+
+    updateUI();
+    saveStore();
+    sendScoreToLeaderboard();
+  }
+
+  function showToast(text) {
+    var t = document.createElement('div');
+    t.textContent = text;
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.9);color:#fff;padding:10px 20px;border-radius:10px;z-index:9999;font-size:14px;font-family:inherit;';
+    document.body.appendChild(t);
+    setTimeout(function() { t.remove(); }, 2000);
   }
 
   function toggleSound() {
@@ -1771,6 +1876,15 @@ document.addEventListener('DOMContentLoaded', function() {
     el.captchaCancel.addEventListener('click', closeCaptcha);
     el.captchaInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') submitCaptcha();
+    });
+    document.getElementById('promoBtn').addEventListener('click', openPromo);
+    document.getElementById('promoCancel').addEventListener('click', closePromo);
+    document.getElementById('promoSubmit').addEventListener('click', submitPromo);
+    document.getElementById('promoInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') submitPromo();
+    });
+    document.getElementById('promoOverlay').addEventListener('click', function(e) {
+      if (e.target === this) closePromo();
     });
     document.getElementById('leaderboardBtn').addEventListener('click', openLeaderboard);
     document.getElementById('leaderboardClose').addEventListener('click', closeLeaderboard);
