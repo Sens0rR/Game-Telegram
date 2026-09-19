@@ -9,10 +9,9 @@
 <title>Слот — Фрукты</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-<!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, collection, doc, setDoc, getDocs, getDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDYBQrw8cUKzvURETRFQRZp_b7F_-jBzAM",
@@ -32,6 +31,7 @@
     collection: collection,
     setDoc: setDoc,
     getDocs: getDocs,
+    getDoc: getDoc,
     deleteDoc: deleteDoc,
     runTransaction: runTransaction,
     ready: true
@@ -604,8 +604,8 @@
   /* ---------- АДМИНКА ---------- */
   .admin-overlay {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.9);
-    z-index: 300;
+    background: rgba(0,0,0,0.92);
+    z-index: 500;
     display: none;
     align-items: flex-start;
     justify-content: center;
@@ -618,13 +618,37 @@
     background: linear-gradient(180deg, #1a0a0a, #0a0505);
     border: 2px solid #ff4444;
     border-radius: 16px;
-    padding: 16px 14px;
+    padding: 16px 14px 14px;
     box-shadow: 0 0 60px rgba(255,68,68,0.7);
     max-width: 440px;
     width: 100%;
     margin: auto;
+    position: relative;
     animation: captchaPop 0.3s cubic-bezier(0.2, 1.4, 0.5, 1);
   }
+  .admin-close-x {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(180deg, #ff4444, #aa1111);
+    color: #fff;
+    border: 3px solid #ff8888;
+    border-radius: 50%;
+    font-size: 22px;
+    font-weight: 900;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    line-height: 1;
+    z-index: 30;
+    box-shadow: 0 4px 0 #440808, 0 0 20px rgba(255,68,68,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .admin-close-x:active { transform: translateY(2px); box-shadow: 0 2px 0 #440808; }
   .admin-title {
     font-size: 16px;
     font-weight: 900;
@@ -766,6 +790,7 @@
   }
   .admin-mini-btn.plus { background: #1e6b2a; }
   .admin-mini-btn.minus { background: #881111; }
+  .admin-mini-btn.rig { background: #6b21a8; }
   .admin-mini-btn.del { background: #666; }
   .admin-close {
     background: linear-gradient(180deg, #cc3333, #881111);
@@ -782,6 +807,8 @@
     width: 100%;
     margin-top: 14px;
     box-shadow: 0 4px 0 #440808;
+    position: sticky;
+    bottom: 0;
   }
   .admin-close:active { transform: translateY(2px); box-shadow: 0 1px 0 #440808; }
   .admin-stat {
@@ -796,6 +823,11 @@
   }
   .admin-stat-label { color: #ff8888; font-weight: 700; }
   .admin-stat-value { color: #fff; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .admin-player-row.selected {
+    background: rgba(255,215,0,0.15);
+    border-color: #ffd700;
+    box-shadow: 0 0 10px rgba(255,215,0,0.4);
+  }
 
   #debugBanner {
     position: fixed;
@@ -834,7 +866,6 @@
 <div id="debugBanner"></div>
 <div class="gold-rain" id="goldRain"></div>
 
-<!-- Модалка промокода -->
 <div class="captcha-overlay" id="promoOverlay">
   <div class="captcha-box">
     <div class="captcha-title">🎁 Промокод</div>
@@ -849,7 +880,6 @@
   </div>
 </div>
 
-<!-- Модалка капчи -->
 <div class="captcha-overlay" id="captchaOverlay">
   <div class="captcha-box">
     <div class="captcha-title">Подтверждение</div>
@@ -875,9 +905,9 @@
   </div>
 </div>
 
-<!-- АДМИНКА -->
 <div class="admin-overlay" id="adminOverlay">
   <div class="admin-box">
+    <button class="admin-close-x" id="adminCloseX" type="button">✕</button>
     <div class="admin-title">⚙️ ADMIN PANEL</div>
     <div class="admin-subtitle">Только для владельца</div>
 
@@ -889,7 +919,6 @@
       <button class="admin-tab" data-tab="danger">⚠️ Опасное</button>
     </div>
 
-    <!-- Статистика -->
     <div class="admin-section active" id="adminStats">
       <div class="admin-stat"><span class="admin-stat-label">Игроков</span><span class="admin-stat-value" id="statPlayers">—</span></div>
       <div class="admin-stat"><span class="admin-stat-label">Общий баланс</span><span class="admin-stat-value" id="statTotalBalance">—</span></div>
@@ -898,7 +927,6 @@
       <div class="admin-stat"><span class="admin-stat-label">Твой ID</span><span class="admin-stat-value" id="statMyId">—</span></div>
     </div>
 
-    <!-- Игроки -->
     <div class="admin-section" id="adminPlayers">
       <div class="admin-label">Себе:</div>
       <div class="admin-row">
@@ -912,12 +940,12 @@
         <button class="admin-btn red" data-action="self-set" data-amount="1000">= 1К</button>
       </div>
 
-      <div class="admin-label">Все игроки (тап — выбрать):</div>
+      <div class="admin-label">Все игроки:</div>
       <div id="adminPlayersList" style="max-height:300px;overflow-y:auto;">
         <div style="text-align:center;color:#888;padding:20px;">Загрузка...</div>
       </div>
 
-      <div class="admin-label">Действие с выбранным игроком:</div>
+      <div class="admin-label">Выбранный игрок:</div>
       <input class="admin-input" id="adminSelectedPlayer" placeholder="ID игрока" readonly>
       <input class="admin-input" id="adminAmountInput" type="number" placeholder="Сумма (может быть минус)" style="font-size:16px;">
       <div class="admin-row">
@@ -926,8 +954,14 @@
       </div>
     </div>
 
-    <!-- Подкрутка -->
     <div class="admin-section" id="adminRig">
+      <div class="admin-label">Цель подкрутки:</div>
+      <input class="admin-input" id="rigTargetInput" placeholder="ID игрока (пусто = ты сам)" readonly>
+      <div class="admin-row">
+        <button class="admin-btn cyan" id="rigTargetMe">👤 Себе</button>
+        <button class="admin-btn cyan" id="rigTargetClear">🚫 Очистить</button>
+      </div>
+
       <div class="admin-label">Следующий спин:</div>
       <div class="admin-row">
         <button class="admin-btn green" id="rigWin">✅ Форс-победа</button>
@@ -938,8 +972,7 @@
         <button class="admin-btn cyan" id="rigClear">↩️ Сбросить</button>
       </div>
 
-      <div class="admin-label">Текущая подкрутка:</div>
-      <div class="admin-stat"><span class="admin-stat-label">Статус</span><span class="admin-stat-value" id="rigStatus">Нет</span></div>
+      <div class="admin-stat"><span class="admin-stat-label">Текущая подкрутка</span><span class="admin-stat-value" id="rigStatus">Нет</span></div>
 
       <div class="admin-label">Глобальный шанс выигрыша (0-100%):</div>
       <input class="admin-input" id="rigChanceInput" type="number" min="0" max="100" placeholder="Оставь пустым — без подкрутки">
@@ -950,7 +983,6 @@
       <div class="admin-stat"><span class="admin-stat-label">Текущий шанс</span><span class="admin-stat-value" id="rigChanceStatus">По умолчанию</span></div>
     </div>
 
-    <!-- Джекпот -->
     <div class="admin-section" id="adminJackpot">
       <div class="admin-stat"><span class="admin-stat-label">Текущий джекпот</span><span class="admin-stat-value" id="adminJackpotValue">—</span></div>
       <div class="admin-row">
@@ -968,7 +1000,6 @@
       <button class="admin-btn orange" id="adminJackpotSetBtn">Применить</button>
     </div>
 
-    <!-- Опасное -->
     <div class="admin-section" id="adminDanger">
       <div class="admin-label" style="color:#ff4444;">⚠️ Опасные действия</div>
       <button class="admin-btn red" id="dangerClearAll" style="width:100%;margin-bottom:6px;">🗑️ Удалить ВСЕХ игроков</button>
@@ -1075,7 +1106,6 @@ var JACKPOT_CONTRIBUTION = 0.03;
 var PROMO_CODE = 'бледный';
 var PROMO_AMOUNT = 1000000;
 
-// ⚙️ АДМИН ID — вставь свой telegram ID
 var ADMIN_IDS = [1450046546];
 
 function showError(msg) {
@@ -1117,7 +1147,6 @@ document.addEventListener('DOMContentLoaded', function() {
   var DIAMOND = '💎';
   var RUB = ' ₽';
 
-  // ---------- ИДЕНТИФИКАЦИЯ ИГРОКА ----------
   var player = { id: '', name: 'Игрок', telegramId: null };
   var isAdmin = false;
 
@@ -1155,14 +1184,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // ---------- РИГ (подкрутка) ----------
+  // Локальный rig для себя
   var rig = {
-    forceNext: null,       // 'win', 'lose', 'jackpot', или null
-    globalChance: null,    // null или число 0..100
+    forceNext: null,
+    globalChance: null,
   };
+  // Для проверки чужих rig — poll Firestore
+  var pendingRigCheck = null;
 
-  // ---------- FIRESTORE: ОТПРАВКА БАЛАНСА ----------
-  var lastSentBalance = -1;
+  function checkPendingRig() {
+    if (!window.FB || !window.FB.ready) return;
+    if (!player.id) return;
+    window.FB.getDoc(window.FB.doc(window.FB.db, 'rigs', player.id)).then(function(snap) {
+      if (snap && snap.exists && snap.exists()) {
+        var d = snap.data();
+        if (d && d.force) {
+          rig.forceNext = d.force;
+          window.FB.deleteDoc(window.FB.doc(window.FB.db, 'rigs', player.id)).catch(function(){});
+        }
+      }
+    }).catch(function(){});
+  }
+  setInterval(checkPendingRig, 2500);
+
   function sendScoreToLeaderboard() {
     try {
       if (!window.FB || !window.FB.ready) return;
@@ -1189,24 +1233,17 @@ document.addEventListener('DOMContentLoaded', function() {
           playerName: player.name,
           maxBalance: newMax,
           updatedAt: new Date().toISOString(),
-        }).catch(function(err) {
-          console.warn('[Firebase] setDoc error:', err);
-        });
-      }).catch(function(err) {
-        console.warn('[Firebase] read error:', err);
-      });
-    } catch(e) {
-      console.warn('[Firebase] send error:', e);
-    }
+        }).catch(function(err) { console.warn('[Firebase] setDoc error:', err); });
+      }).catch(function(err) { console.warn('[Firebase] read error:', err); });
+    } catch(e) { console.warn('[Firebase] send error:', e); }
   }
 
-  // ---------- FIRESTORE: ЗАГРУЗКА ЛИДЕРБОРДА ----------
   function loadLeaderboard() {
     var listEl = document.getElementById('leaderboardList');
     listEl.innerHTML = '<div class="leaderboard-status">Загрузка...</div>';
 
     if (!window.FB || !window.FB.ready) {
-      listEl.innerHTML = '<div class="leaderboard-status">⏱ Firebase ещё загружается...<br>Подожди пару секунд и открой снова.</div>';
+      listEl.innerHTML = '<div class="leaderboard-status">⏱ Firebase ещё загружается...</div>';
       return;
     }
 
@@ -1254,7 +1291,6 @@ document.addEventListener('DOMContentLoaded', function() {
       });
   }
 
-  // ---------- ОБЩИЙ ДЖЕКПОТ ----------
   var jackpotLoaded = false;
 
   function loadJackpot() {
@@ -1262,24 +1298,17 @@ document.addEventListener('DOMContentLoaded', function() {
     var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
     window.FB.getDocs(window.FB.collection(window.FB.db, 'jackpot')).then(function(snap) {
       var found = null;
-      snap.forEach(function(d) {
-        if (d.id === 'main') found = d.data();
-      });
+      snap.forEach(function(d) { if (d.id === 'main') found = d.data(); });
       if (found && typeof found.amount === 'number') {
         state.jackpot = found.amount;
       } else {
-        window.FB.setDoc(ref, {
-          amount: JACKPOT_START,
-          updatedAt: new Date().toISOString(),
-        }).catch(function(){});
+        window.FB.setDoc(ref, { amount: JACKPOT_START, updatedAt: new Date().toISOString() }).catch(function(){});
         state.jackpot = JACKPOT_START;
       }
       jackpotLoaded = true;
       updateJackpotUI();
       updateAdminStats();
-    }).catch(function(err) {
-      console.warn('[Jackpot] load error:', err);
-    });
+    }).catch(function(err) { console.warn('[Jackpot] load error:', err); });
   }
 
   function contributeToJackpot(amount) {
@@ -1294,37 +1323,27 @@ document.addEventListener('DOMContentLoaded', function() {
           if (d && typeof d.amount === 'number') current = d.amount;
         }
         var next = Math.min(current + amount, JACKPOT_CAP);
-        if (!docSnap.exists()) {
-          tx.set(ref, { amount: next, updatedAt: new Date().toISOString() });
-        } else {
-          tx.update(ref, { amount: next, updatedAt: new Date().toISOString() });
-        }
+        if (!docSnap.exists()) tx.set(ref, { amount: next, updatedAt: new Date().toISOString() });
+        else tx.update(ref, { amount: next, updatedAt: new Date().toISOString() });
         state.jackpot = next;
         updateJackpotUI();
       });
-    }).catch(function(err) {
-      console.warn('[Jackpot] contribute error:', err);
-    });
+    }).catch(function(err) { console.warn('[Jackpot] contribute error:', err); });
   }
 
   function resetJackpot() {
     if (!window.FB || !window.FB.ready) return;
     var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
-    window.FB.setDoc(ref, {
-      amount: JACKPOT_START,
-      updatedAt: new Date().toISOString(),
-    }).then(function() {
-      state.jackpot = JACKPOT_START;
-      updateJackpotUI();
-      updateAdminStats();
-    }).catch(function(err) {
-      console.warn('[Jackpot] reset error:', err);
-    });
+    window.FB.setDoc(ref, { amount: JACKPOT_START, updatedAt: new Date().toISOString() })
+      .then(function() {
+        state.jackpot = JACKPOT_START;
+        updateJackpotUI();
+        updateAdminStats();
+      })
+      .catch(function(err) { console.warn('[Jackpot] reset error:', err); });
   }
 
-  setInterval(function() {
-    if (!state.spinning) loadJackpot();
-  }, 10000);
+  setInterval(function() { if (!state.spinning) loadJackpot(); }, 10000);
 
   function openLeaderboard() {
     document.getElementById('leaderboardOverlay').classList.add('show');
@@ -1336,8 +1355,12 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   initPlayerIdentity();
+  if (isAdmin) {
+    setTimeout(checkPendingRig, 500);
+    setInterval(checkPendingRig, 2500);
+  }
+  setTimeout(checkPendingRig, 1500);
 
-  // ---------- ИГРОВАЯ ЛОГИКА ----------
   var PAYOUTS3 = {}, PAYOUTS4 = {}, PAYOUTS5 = {};
   CONFIG.symbols.forEach(function(s) {
     PAYOUTS3[s.emoji] = s.pay3;
@@ -1407,11 +1430,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function fmt(n) {
     var num = Math.round(n);
-    try {
-      return num.toLocaleString('ru-RU') + RUB;
-    } catch(e) {
-      return String(num) + RUB;
-    }
+    try { return num.toLocaleString('ru-RU') + RUB; }
+    catch(e) { return String(num) + RUB; }
   }
 
   var soundCtx = null;
@@ -1472,7 +1492,6 @@ document.addEventListener('DOMContentLoaded', function() {
     c.classList.toggle('diamond', emoji === DIAMOND);
   }
 
-  // 🎲 Анимирует барабаны с учётом подкрутки
   function animateReel(reelIdx, duration, forceSymbols) {
     return new Promise(function(resolve) {
       var cells = [getCell(reelIdx, 0), getCell(reelIdx, 1), getCell(reelIdx, 2)];
@@ -1492,14 +1511,10 @@ document.addEventListener('DOMContentLoaded', function() {
         cells.forEach(function(c) {
           if (!c) return;
           c.classList.remove('spinning');
-          // Если подкрутка задана для этого барабана — ставим нужные символы
           var idx = cells.indexOf(c);
           var e;
-          if (forceSymbols && forceSymbols[idx]) {
-            e = forceSymbols[idx];
-          } else {
-            e = rndEmoji();
-          }
+          if (forceSymbols && forceSymbols[idx]) e = forceSymbols[idx];
+          else e = rndEmoji();
           c.textContent = e;
           c.classList.toggle('diamond', e === DIAMOND);
         });
@@ -1517,22 +1532,18 @@ document.addEventListener('DOMContentLoaded', function() {
     for (var startRow = 0; startRow < ROWS; startRow++) {
       var symbol = grid[0][startRow];
       if (symbol === DIAMOND) continue;
-
       var stack = [[{ reel: 0, row: startRow }]];
       var completed = [];
       var safety = 0;
-
       while (stack.length && safety < 5000) {
         safety++;
         var path = stack.pop();
         var last = path[path.length - 1];
         var nextReel = last.reel + 1;
-
         if (nextReel >= REELS_COUNT) {
           if (path.length >= 3) completed.push(path);
           continue;
         }
-
         var candidates = DIAGONALS[last.row];
         var extended = false;
         for (var k = 0; k < candidates.length; k++) {
@@ -1546,7 +1557,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (!extended && path.length >= 3) completed.push(path);
       }
-
       if (completed.length) {
         completed.sort(function(a,b){ return b.length - a.length; });
         var best = completed[0];
@@ -1554,10 +1564,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (best.length === 3) payout = PAYOUTS3[symbol] || 0;
         else if (best.length === 4) payout = PAYOUTS4[symbol] || 0;
         else if (best.length >= 5) payout = PAYOUTS5[symbol] || 0;
-
-        if (payout > 0) {
-          results.push({ symbol: symbol, length: best.length, path: best, payout: payout });
-        }
+        if (payout > 0) results.push({ symbol: symbol, length: best.length, path: best, payout: payout });
       }
     }
     return results;
@@ -1565,16 +1572,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function checkGrandJackpot(grid) {
     if (grid[4][1] !== DIAMOND) return null;
-
     function tryPath(reel, row, path) {
       if (reel >= 4) return null;
       if (grid[reel][row] !== '🍉') return null;
       var np = path.slice(); np.push({ reel: reel, row: row });
       if (reel === 3) {
-        if (Math.abs(row - 1) <= 1) {
-          np.push({ reel: 4, row: 1 });
-          return np;
-        }
+        if (Math.abs(row - 1) <= 1) { np.push({ reel: 4, row: 1 }); return np; }
         return null;
       }
       var nexts = DIAGONALS[row];
@@ -1584,7 +1587,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       return null;
     }
-
     for (var startRow = 0; startRow < ROWS; startRow++) {
       if (grid[0][startRow] !== '🍉') continue;
       var path = tryPath(0, startRow, []);
@@ -1613,10 +1615,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var c = getCell(reelIdx, row);
     if (!c) return { x: 0, y: 0 };
     var r = c.getBoundingClientRect();
-    return {
-      x: r.left - reelsRect.left + r.width / 2,
-      y: r.top - reelsRect.top + r.height / 2,
-    };
+    return { x: r.left - reelsRect.left + r.width / 2, y: r.top - reelsRect.top + r.height / 2 };
   }
   function lightningPoints(a, b, segments) {
     var pts = [a];
@@ -1639,7 +1638,6 @@ document.addEventListener('DOMContentLoaded', function() {
     el.lightningSvg.setAttribute('viewBox', '0 0 ' + reelsRect.width + ' ' + reelsRect.height);
     el.lightningSvg.setAttribute('width', reelsRect.width);
     el.lightningSvg.setAttribute('height', reelsRect.height);
-
     var centers = path.map(function(p){ return getCellCenter(p.reel, p.row); });
     var d = '';
     for (var i = 0; i < centers.length - 1; i++) {
@@ -1732,7 +1730,6 @@ document.addEventListener('DOMContentLoaded', function() {
     clearAllTimers();
     document.querySelectorAll('.cell.hit').forEach(function(c){ c.classList.remove('hit'); });
     clearLightning();
-
     highlightCells(wins);
 
     var winText = '+' + fmt(totalWin);
@@ -1741,13 +1738,9 @@ document.addEventListener('DOMContentLoaded', function() {
     void el.winPopup.offsetWidth;
     el.winPopup.classList.add('show');
 
-    if (isJackpot) {
-      setMessage('👑 ДЖЕКПОТ! ' + winText, 'jackpot', '#00ffff');
-    } else if (totalWin > 0) {
-      setMessage(winText, 'win', '#ffd700');
-    } else {
-      setMessage('Промах!', null, '#d4af37');
-    }
+    if (isJackpot) setMessage('👑 ДЖЕКПОТ! ' + winText, 'jackpot', '#00ffff');
+    else if (totalWin > 0) setMessage(winText, 'win', '#ffd700');
+    else setMessage('Промах!', null, '#d4af37');
 
     if (isJackpot) {
       el.machine.classList.add('mega-shake');
@@ -1763,9 +1756,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (totalWin > 0) {
       Sound.win();
       vibrate([60, 30, 60]);
-    } else {
-      Sound.miss();
-    }
+    } else Sound.miss();
 
     var lifetime = isJackpot ? 5000 : 2200;
     messageTimer = setTimeout(function() {
@@ -1780,10 +1771,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function showMiss() {
     setMessage('Промах!', null, '#d4af37');
     Sound.miss();
-    messageTimer = setTimeout(function() {
-      clearMessage();
-      messageTimer = null;
-    }, 600);
+    messageTimer = setTimeout(function() { clearMessage(); messageTimer = null; }, 600);
   }
 
   function pushHistory(type) {
@@ -1809,7 +1797,6 @@ document.addEventListener('DOMContentLoaded', function() {
     var canSpin = !state.spinning && state.balance >= state.bet;
     el.spinBtn.disabled = !canSpin;
     el.spinBtn.textContent = state.outOfFunds ? 'НЕТ СРЕДСТВ' : 'КРУТИТЬ';
-
     var disabled = state.spinning || state.outOfFunds || state.balance < CONFIG.bet.min;
     el.betHalf.disabled = disabled || state.bet <= CONFIG.bet.min;
     el.betX2.disabled = disabled;
@@ -1818,46 +1805,37 @@ document.addEventListener('DOMContentLoaded', function() {
     el.betAdd100.disabled = disabled;
     el.betAdd1000.disabled = disabled;
     el.addBtn.disabled = state.spinning;
-
     if (!state.spinning) {
-      if (state.balance < CONFIG.bet.min) {
-        state.outOfFunds = true;
-        setMessage('Нет средств — жми +1000', null, '#c03030');
-      } else if (state.balance < state.bet) {
-        setMessage('Ставка больше баланса', null, '#b08838');
-      }
+      if (state.balance < CONFIG.bet.min) { state.outOfFunds = true; setMessage('Нет средств — жми +1000', null, '#c03030'); }
+      else if (state.balance < state.bet) { setMessage('Ставка больше баланса', null, '#b08838'); }
     }
   }
 
-  // 🎲 Проверяет подкрутку и возвращает, что должно быть
-  function applyRig(finalSyms, grid) {
+  function applyRigToSyms(finalSyms) {
     if (rig.forceNext === 'jackpot') {
-      // Делаем так, чтобы 4 арбуза слева и 💎 в центре
-      finalSyms[0] = '🍉';
-      finalSyms[1] = '🍉';
-      finalSyms[2] = '🍉';
-      finalSyms[3] = '🍉';
-      finalSyms[4] = DIAMOND;
-      return 'jackpot';
+      // Форсим 💎 в центре 5-го барабана + 🍉 в центр слева
+      return { forceReels: {
+        0: [rndEmoji(), '🍉', rndEmoji()],
+        1: [rndEmoji(), '🍉', rndEmoji()],
+        2: [rndEmoji(), '🍉', rndEmoji()],
+        3: [rndEmoji(), '🍉', rndEmoji()],
+        4: [rndEmoji(), DIAMOND, rndEmoji()],
+      }, result: 'jackpot' };
     }
     if (rig.forceNext === 'win') {
-      // Форсим 3 одинаковых на центральной линии
-      var sym = '🍒';
-      finalSyms[0] = sym;
-      finalSyms[1] = sym;
-      finalSyms[2] = sym;
-      return 'win';
+      var s = '🍒';
+      return { forceReels: {
+        0: [rndEmoji(), s, rndEmoji()],
+        1: [rndEmoji(), s, rndEmoji()],
+        2: [rndEmoji(), s, rndEmoji()],
+      }, result: 'win' };
     }
-    if (rig.forceNext === 'lose') {
-      return 'lose';
-    }
+    if (rig.forceNext === 'lose') return { forceReels: null, result: 'lose' };
     if (rig.globalChance !== null) {
       var roll = Math.random() * 100;
-      if (roll >= rig.globalChance) {
-        return 'lose';
-      }
+      if (roll >= rig.globalChance) return { forceReels: null, result: 'lose' };
     }
-    return null;
+    return { forceReels: null, result: null };
   }
 
   function spin() {
@@ -1883,60 +1861,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
       updateUI();
       saveStore();
-
       setMessage('Крутим...', null, '#b08838');
-
       vibrate([40, 30, 40]);
       Sound.click();
 
-      // 🎲 Готовим подкрутку заранее
       var finalSyms = [rndEmoji(), rndEmoji(), rndEmoji(), rndEmoji(), rndEmoji()];
-      var rigResult = applyRig(finalSyms, null);
-      var forceReels = {};
-      if (rigResult === 'jackpot') {
-        // Только центральный барабан должен показать 💎, слева должны быть 🍉
-        forceReels = {
-          0: [rndEmoji(), '🍉', rndEmoji()],
-          1: [rndEmoji(), '🍉', rndEmoji()],
-          2: [rndEmoji(), '🍉', rndEmoji()],
-          3: [rndEmoji(), '🍉', rndEmoji()],
-          4: [rndEmoji(), DIAMOND, rndEmoji()],
-        };
-      } else if (rigResult === 'win') {
-        forceReels = {
-          0: [rndEmoji(), '🍒', rndEmoji()],
-          1: [rndEmoji(), '🍒', rndEmoji()],
-          2: [rndEmoji(), '🍒', rndEmoji()],
-        };
-      } else if (rigResult === 'lose') {
-        // Оставляем как есть — рандом
-        rigResult = 'lose_forced';
-      }
+      var rigResult = applyRigToSyms(finalSyms);
+      var forceReels = rigResult.forceReels;
 
       var promises = [];
       for (var i = 0; i < REELS_COUNT; i++) {
         (function(idx) {
-          promises.push(animateReel(idx, CONFIG.spinDuration + idx * CONFIG.reelStagger, forceReels[idx] || null));
+          promises.push(animateReel(idx, CONFIG.spinDuration + idx * CONFIG.reelStagger, forceReels ? forceReels[idx] : null));
         })(i);
       }
 
       Promise.all(promises).then(function() {
         var grid = readGrid();
         var grandPath = checkGrandJackpot(grid);
-
         var forced = rig.forceNext;
         rig.forceNext = null;
 
-        if (grandPath && forced !== 'lose') {
+        if (grandPath && (forced !== 'lose' && rigResult.result !== 'lose')) {
           var jackpotWin = state.jackpot;
           resetJackpot();
           state.spinning = false;
           var allowedJackpot = jackpotWin;
           state.balance += allowedJackpot;
-          var wins = [{
-            symbol: DIAMOND, length: 5, path: grandPath,
-            payout: allowedJackpot, isJackpot: true,
-          }];
+          var wins = [{ symbol: DIAMOND, length: 5, path: grandPath, payout: allowedJackpot, isJackpot: true }];
           showWinVisual(wins, allowedJackpot, true);
           pushHistory('jackpot');
         } else {
@@ -1947,9 +1899,7 @@ document.addEventListener('DOMContentLoaded', function() {
           totalWin = Math.floor(totalWin);
           state.spinning = false;
 
-          if (forced === 'lose' || rigResult === 'lose_forced') {
-            totalWin = 0;
-          }
+          if (forced === 'lose' || rigResult.result === 'lose') totalWin = 0;
 
           var suppressChance = 0;
           if (state.balance >= SOFT_CAP_START) {
@@ -1957,7 +1907,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (progress > 1) progress = 1;
             suppressChance = progress * 0.98;
           }
-
           var suppressRoll = Math.random();
           var suppressed = totalWin > 0 && suppressRoll < suppressChance && forced !== 'win';
 
@@ -1968,9 +1917,7 @@ document.addEventListener('DOMContentLoaded', function() {
               balanceFactor = balanceFactor * balanceFactor * balanceFactor;
               if (balanceFactor < 0.001) balanceFactor = 0.001;
             }
-
             totalWin = Math.floor(totalWin * balanceFactor);
-
             if (totalWin > 0) {
               state.balance += totalWin;
               var anyBig = wins2.some(function(w){ return w.length >= 4; });
@@ -1980,7 +1927,7 @@ document.addEventListener('DOMContentLoaded', function() {
               showWinVisual(wins2, 0, false);
               pushHistory('miss');
             }
-          } else if (suppressed || forced === 'lose' || rigResult === 'lose_forced') {
+          } else if (suppressed || forced === 'lose' || rigResult.result === 'lose') {
             showWinVisual(wins2, 0, false);
             pushHistory('miss');
           } else {
@@ -1989,15 +1936,10 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }
 
-        if (state.balance < FLOOR) {
-          state.balance = FLOOR;
-        }
-
+        if (state.balance < FLOOR) state.balance = FLOOR;
         if (state.bet > state.balance) {
-          state.bet = Math.max(CONFIG.bet.min,
-            Math.floor(state.balance / CONFIG.bet.step) * CONFIG.bet.step);
+          state.bet = Math.max(CONFIG.bet.min, Math.floor(state.balance / CONFIG.bet.step) * CONFIG.bet.step);
         }
-
         saveStore();
         updateUI();
         sendScoreToLeaderboard();
@@ -2041,27 +1983,10 @@ document.addEventListener('DOMContentLoaded', function() {
   function generateCaptcha() {
     var op = Math.floor(Math.random() * 4);
     var a, b, q, ans;
-    if (op === 0) {
-      a = 2 + Math.floor(Math.random() * 19);
-      b = 2 + Math.floor(Math.random() * 19);
-      ans = a + b;
-      q = a + ' + ' + b;
-    } else if (op === 1) {
-      a = 5 + Math.floor(Math.random() * 16);
-      b = 2 + Math.floor(Math.random() * (a - 1));
-      ans = a - b;
-      q = a + ' − ' + b;
-    } else if (op === 2) {
-      a = 2 + Math.floor(Math.random() * 14);
-      b = 2 + Math.floor(Math.random() * 14);
-      ans = a * b;
-      q = a + ' × ' + b;
-    } else {
-      b = 2 + Math.floor(Math.random() * 9);
-      ans = 2 + Math.floor(Math.random() * 10);
-      a = b * ans;
-      q = a + ' ÷ ' + b;
-    }
+    if (op === 0) { a = 2 + Math.floor(Math.random()*19); b = 2 + Math.floor(Math.random()*19); ans = a+b; q = a+' + '+b; }
+    else if (op === 1) { a = 5 + Math.floor(Math.random()*16); b = 2 + Math.floor(Math.random()*(a-1)); ans = a-b; q = a+' − '+b; }
+    else if (op === 2) { a = 2 + Math.floor(Math.random()*14); b = 2 + Math.floor(Math.random()*14); ans = a*b; q = a+' × '+b; }
+    else { b = 2 + Math.floor(Math.random()*9); ans = 2 + Math.floor(Math.random()*10); a = b*ans; q = a+' ÷ '+b; }
     captchaAnswer = ans;
     el.captchaQuestion.textContent = q + ' = ?';
     el.captchaInput.value = '';
@@ -2074,29 +1999,19 @@ document.addEventListener('DOMContentLoaded', function() {
     captchaActive = true;
     generateCaptcha();
     el.captchaOverlay.classList.add('show');
-    setTimeout(function() {
-      try { el.captchaInput.focus(); } catch(e) {}
-    }, 100);
+    setTimeout(function() { try { el.captchaInput.focus(); } catch(e) {} }, 100);
   }
-
   function closeCaptcha() {
     captchaActive = false;
     el.captchaOverlay.classList.remove('show');
     el.captchaInput.blur();
   }
-
   function submitCaptcha() {
     if (!captchaActive) return;
     var raw = String(el.captchaInput.value || '').trim();
     raw = raw.replace(/\s+/g, '').replace(',', '.');
     var val = parseInt(raw, 10);
-
-    if (isNaN(val)) {
-      el.captchaError.textContent = 'Введи число';
-      el.captchaInput.classList.add('error');
-      setTimeout(function(){ el.captchaInput.classList.remove('error'); }, 400);
-      return;
-    }
+    if (isNaN(val)) { el.captchaError.textContent = 'Введи число'; el.captchaInput.classList.add('error'); setTimeout(function(){ el.captchaInput.classList.remove('error'); }, 400); return; }
     if (val !== captchaAnswer) {
       el.captchaError.textContent = 'Неверно, попробуй ещё';
       el.captchaInput.classList.add('error');
@@ -2105,7 +2020,6 @@ document.addEventListener('DOMContentLoaded', function() {
       vibrate(150);
       return;
     }
-
     vibrate(30);
     Sound.win();
     state.balance += CONFIG.bet.add;
@@ -2113,69 +2027,38 @@ document.addEventListener('DOMContentLoaded', function() {
     closeCaptcha();
     clearMessage();
     setMessage('+' + fmt(CONFIG.bet.add) + ' зачислено!', 'win', '#3fa04a');
-    messageTimer = setTimeout(function() {
-      clearMessage();
-      messageTimer = null;
-    }, 1500);
+    messageTimer = setTimeout(function() { clearMessage(); messageTimer = null; }, 1500);
     updateUI();
     saveStore();
     sendScoreToLeaderboard();
   }
-
-  function addBalance() {
-    try {
-      if (state.spinning) return;
-      openCaptcha();
-    } catch(e) { showError('addBalance(): ' + e.message); }
-  }
+  function addBalance() { try { if (state.spinning) return; openCaptcha(); } catch(e) { showError('addBalance(): ' + e.message); } }
 
   var promoActive = false;
-
   function openPromo() {
     if (state.spinning) return;
-
     var used = false;
-    try {
-      used = localStorage.getItem('slot_promo_used') === '1';
-    } catch(e) {}
-
-    if (used) {
-      showToast('Промокод уже использован');
-      return;
-    }
-
+    try { used = localStorage.getItem('slot_promo_used') === '1'; } catch(e) {}
+    if (used) { showToast('Промокод уже использован'); return; }
     promoActive = true;
     var overlay = document.getElementById('promoOverlay');
     var input = document.getElementById('promoInput');
     var err = document.getElementById('promoError');
-    input.value = '';
-    err.textContent = '';
-    input.classList.remove('error');
+    input.value = ''; err.textContent = ''; input.classList.remove('error');
     overlay.classList.add('show');
-    setTimeout(function() {
-      try { input.focus(); } catch(e) {}
-    }, 100);
+    setTimeout(function() { try { input.focus(); } catch(e) {} }, 100);
   }
-
   function closePromo() {
     promoActive = false;
     document.getElementById('promoOverlay').classList.remove('show');
     document.getElementById('promoInput').blur();
   }
-
   function submitPromo() {
     if (!promoActive) return;
     var input = document.getElementById('promoInput');
     var err = document.getElementById('promoError');
     var raw = String(input.value || '').trim().toLowerCase();
-
-    if (!raw) {
-      err.textContent = 'Введи промокод';
-      input.classList.add('error');
-      setTimeout(function(){ input.classList.remove('error'); }, 400);
-      return;
-    }
-
+    if (!raw) { err.textContent = 'Введи промокод'; input.classList.add('error'); setTimeout(function(){ input.classList.remove('error'); }, 400); return; }
     if (raw !== PROMO_CODE) {
       err.textContent = 'Неверный промокод';
       input.classList.add('error');
@@ -2184,24 +2067,15 @@ document.addEventListener('DOMContentLoaded', function() {
       vibrate(150);
       return;
     }
-
     vibrate([50, 50, 100]);
     Sound.win();
     state.balance += PROMO_AMOUNT;
     state.outOfFunds = false;
-
-    try {
-      localStorage.setItem('slot_promo_used', '1');
-    } catch(e) {}
-
+    try { localStorage.setItem('slot_promo_used', '1'); } catch(e) {}
     closePromo();
     clearMessage();
     setMessage('🎁 +' + fmt(PROMO_AMOUNT) + ' по промокоду!', 'promo', '#a855f7');
-    messageTimer = setTimeout(function() {
-      clearMessage();
-      messageTimer = null;
-    }, 3000);
-
+    messageTimer = setTimeout(function() { clearMessage(); messageTimer = null; }, 3000);
     updateUI();
     saveStore();
     sendScoreToLeaderboard();
@@ -2223,17 +2097,14 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // ============================================================
-  //  🛠️ АДМИН-ПАНЕЛЬ
+  //  АДМИН
   // ============================================================
-
   var adminTapCount = 0;
   var adminTapTimer = null;
+  var rigTargetId = null;
 
   function onLogoTap() {
-    if (!isAdmin) {
-      // Тихо игнорируем — не палим контору
-      return;
-    }
+    if (!isAdmin) return;
     adminTapCount++;
     if (adminTapTimer) clearTimeout(adminTapTimer);
     adminTapTimer = setTimeout(function() { adminTapCount = 0; }, 2000);
@@ -2263,6 +2134,8 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (rig.forceNext === 'jackpot') rtxt = '👑 Джекпот';
     document.getElementById('rigStatus').textContent = rtxt;
     document.getElementById('rigChanceStatus').textContent = (rig.globalChance === null) ? 'По умолчанию' : rig.globalChance + '%';
+    var t = rigTargetId || '';
+    document.getElementById('rigTargetInput').value = t;
   }
 
   function loadAdminPlayers() {
@@ -2275,11 +2148,7 @@ document.addEventListener('DOMContentLoaded', function() {
       var total = 0;
       snap.forEach(function(d) {
         var v = d.data() || {};
-        list.push({
-          id: d.id,
-          name: v.playerName || 'Игрок',
-          balance: Number(v.maxBalance) || 0,
-        });
+        list.push({ id: d.id, name: v.playerName || 'Игрок', balance: Number(v.maxBalance) || 0 });
         total += Number(v.maxBalance) || 0;
       });
       list.sort(function(a, b) { return b.balance - a.balance; });
@@ -2296,7 +2165,8 @@ document.addEventListener('DOMContentLoaded', function() {
       list.forEach(function(row) {
         var safeId = String(row.id).replace(/"/g, '&quot;');
         var safeName = String(row.name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        html += '<div class="admin-player-row">'
+        var sel = (rigTargetId === row.id) ? ' selected' : '';
+        html += '<div class="admin-player-row' + sel + '">'
           + '<div class="admin-player-info">'
           + '<div class="admin-player-name">' + safeName + '</div>'
           + '<div class="admin-player-balance">' + fmt(row.balance) + '</div>'
@@ -2304,6 +2174,7 @@ document.addEventListener('DOMContentLoaded', function() {
           + '<div class="admin-player-actions">'
           + '<button class="admin-mini-btn plus" data-select="' + safeId + '">+</button>'
           + '<button class="admin-mini-btn minus" data-select="' + safeId + '">−</button>'
+          + '<button class="admin-mini-btn rig" data-rig-target="' + safeId + '">🎲</button>'
           + '<button class="admin-mini-btn del" data-delete="' + safeId + '">🗑</button>'
           + '</div>'
           + '</div>';
@@ -2313,19 +2184,23 @@ document.addEventListener('DOMContentLoaded', function() {
       listEl.querySelectorAll('[data-select]').forEach(function(btn) {
         btn.addEventListener('click', function() {
           document.getElementById('adminSelectedPlayer').value = btn.getAttribute('data-select');
-          showToast('Выбран: ' + btn.getAttribute('data-select').slice(0, 12));
+          showToast('Выбран для денег: ' + btn.getAttribute('data-select').slice(0, 12));
         });
       });
-
+      listEl.querySelectorAll('[data-rig-target]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          rigTargetId = btn.getAttribute('data-rig-target');
+          document.getElementById('rigTargetInput').value = rigTargetId;
+          showToast('Цель подкрутки: ' + rigTargetId.slice(0, 12));
+          loadAdminPlayers();
+        });
+      });
       listEl.querySelectorAll('[data-delete]').forEach(function(btn) {
         btn.addEventListener('click', function() {
           var id = btn.getAttribute('data-delete');
           if (!confirm('Удалить игрока ' + id.slice(0, 12) + '?')) return;
           window.FB.deleteDoc(window.FB.doc(window.FB.db, 'scores', id))
-            .then(function() {
-              showToast('Удалён');
-              loadAdminPlayers();
-            })
+            .then(function() { showToast('Удалён'); loadAdminPlayers(); })
             .catch(function(err) { showToast('Ошибка: ' + err.message); });
         });
       });
@@ -2334,42 +2209,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  function getTargetPlayerId() {
-    return document.getElementById('adminSelectedPlayer').value.trim();
-  }
-
   function applyToTargetPlayer(amount, isSet) {
-    var id = getTargetPlayerId();
+    var id = document.getElementById('adminSelectedPlayer').value.trim();
     if (!id) { showToast('Сначала выбери игрока'); return; }
     if (!window.FB || !window.FB.ready) return;
-
     var ref = window.FB.doc(window.FB.db, 'scores', id);
     window.FB.getDocs(window.FB.collection(window.FB.db, 'scores')).then(function(snap) {
-      var old = 0; var name = 'Игрок';
+      var old = 0, name = 'Игрок';
       snap.forEach(function(d) {
         if (d.id === id) {
           var v = d.data();
-          if (v) {
-            old = Number(v.maxBalance) || 0;
-            name = v.playerName || 'Игрок';
-          }
+          if (v) { old = Number(v.maxBalance) || 0; name = v.playerName || 'Игрок'; }
         }
       });
       var next = isSet ? Math.max(0, Math.floor(amount)) : Math.max(0, old + Math.floor(amount));
-      window.FB.setDoc(ref, {
-        playerId: id,
-        playerName: name,
-        maxBalance: next,
-        updatedAt: new Date().toISOString(),
-      }).then(function() {
-        showToast('OK: ' + fmt(next));
-        loadAdminPlayers();
-        if (id === player.id) {
-          state.balance = next;
-          updateUI();
-          saveStore();
-        }
-      }).catch(function(err) { showToast('Ошибка: ' + err.message); });
+      window.FB.setDoc(ref, { playerId: id, playerName: name, maxBalance: next, updatedAt: new Date().toISOString() })
+        .then(function() {
+          showToast('OK: ' + fmt(next));
+          loadAdminPlayers();
+          if (id === player.id) { state.balance = next; updateUI(); saveStore(); }
+        }).catch(function(err) { showToast('Ошибка: ' + err.message); });
     });
   }
 
@@ -2377,15 +2236,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!window.FB || !window.FB.ready) return;
     var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
     var v = Math.max(0, Math.floor(value));
-    window.FB.setDoc(ref, {
-      amount: v,
-      updatedAt: new Date().toISOString(),
-    }).then(function() {
-      state.jackpot = v;
-      updateJackpotUI();
-      updateAdminStats();
-      showToast('Джекпот: ' + fmt(v));
-    }).catch(function(err) { showToast('Ошибка: ' + err.message); });
+    window.FB.setDoc(ref, { amount: v, updatedAt: new Date().toISOString() })
+      .then(function() {
+        state.jackpot = v;
+        updateJackpotUI();
+        updateAdminStats();
+        showToast('Джекпот: ' + fmt(v));
+      }).catch(function(err) { showToast('Ошибка: ' + err.message); });
   }
 
   function clearAllPlayers(keepMe) {
@@ -2403,60 +2260,73 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Обработчики админки
-  document.addEventListener('click', function(e) {
-    var target = e.target;
-    // Тап по логотипу
-    if (target && target.id === 'titleLogo') {
-      onLogoTap();
+  // 🎲 Запись подкрутки в Firestore для игрока
+  function setRigForTarget(force) {
+    var target = rigTargetId || player.id;
+    if (!target) { showToast('Нет цели'); return; }
+
+    if (target === player.id) {
+      rig.forceNext = force;
+      updateAdminStats();
+      showToast('Себе: ' + force);
       return;
     }
+
+    if (!window.FB || !window.FB.ready) return;
+    var ref = window.FB.doc(window.FB.db, 'rigs', target);
+    window.FB.setDoc(ref, {
+      force: force,
+      createdAt: new Date().toISOString(),
+      createdBy: player.id,
+    }).then(function() {
+      showToast('Записано для ' + target.slice(0, 12) + ': ' + force);
+    }).catch(function(err) { showToast('Ошибка: ' + err.message); });
+  }
+
+  function clearRigForTarget() {
+    var target = rigTargetId || player.id;
+    if (target === player.id) {
+      rig.forceNext = null;
+      updateAdminStats();
+      showToast('Подкрутка сброшена');
+      return;
+    }
+    if (!window.FB || !window.FB.ready) return;
+    window.FB.deleteDoc(window.FB.doc(window.FB.db, 'rigs', target))
+      .then(function() { showToast('Сброшено для ' + target.slice(0, 12)); })
+      .catch(function(err) { showToast('Ошибка: ' + err.message); });
+  }
+
+  document.addEventListener('click', function(e) {
+    var target = e.target;
+    if (target && target.id === 'titleLogo') { onLogoTap(); return; }
     if (!isAdmin) return;
 
     var action = target && target.getAttribute ? target.getAttribute('data-action') : null;
     var amount = target && target.getAttribute ? parseInt(target.getAttribute('data-amount'), 10) : NaN;
 
     if (action === 'self-add' && !isNaN(amount)) {
-      state.balance += amount;
-      updateUI();
-      saveStore();
-      sendScoreToLeaderboard();
-      showToast('+' + fmt(amount));
-      updateAdminStats();
-      return;
+      state.balance += amount; updateUI(); saveStore(); sendScoreToLeaderboard();
+      showToast('+' + fmt(amount)); updateAdminStats(); return;
     }
     if (action === 'self-set' && !isNaN(amount)) {
-      state.balance = amount;
-      updateUI();
-      saveStore();
-      sendScoreToLeaderboard();
-      showToast('Баланс = ' + fmt(amount));
-      updateAdminStats();
-      return;
+      state.balance = amount; updateUI(); saveStore(); sendScoreToLeaderboard();
+      showToast('Баланс = ' + fmt(amount)); updateAdminStats(); return;
     }
     if (action === 'target-add') {
       var amt = parseInt(document.getElementById('adminAmountInput').value, 10);
       if (isNaN(amt)) { showToast('Введи сумму'); return; }
-      applyToTargetPlayer(amt, false);
-      return;
+      applyToTargetPlayer(amt, false); return;
     }
     if (action === 'target-set') {
       var amt2 = parseInt(document.getElementById('adminAmountInput').value, 10);
       if (isNaN(amt2)) { showToast('Введи сумму'); return; }
-      applyToTargetPlayer(amt2, true);
-      return;
+      applyToTargetPlayer(amt2, true); return;
     }
-    if (action === 'jackpot-add' && !isNaN(amount)) {
-      setJackpotValue(state.jackpot + amount);
-      return;
-    }
-    if (action === 'jackpot-set' && !isNaN(amount)) {
-      setJackpotValue(amount);
-      return;
-    }
+    if (action === 'jackpot-add' && !isNaN(amount)) { setJackpotValue(state.jackpot + amount); return; }
+    if (action === 'jackpot-set' && !isNaN(amount)) { setJackpotValue(amount); return; }
   });
 
-  // Табы админки
   document.addEventListener('click', function(e) {
     var t = e.target;
     if (!t || !t.classList || !t.classList.contains('admin-tab')) return;
@@ -2469,42 +2339,50 @@ document.addEventListener('DOMContentLoaded', function() {
     if (sec) sec.classList.add('active');
     if (tab === 'players') loadAdminPlayers();
     if (tab === 'stats') updateAdminStats();
+    if (tab === 'rig') updateAdminStats();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeAdmin();
+      closeLeaderboard();
+      closePromo();
+      closeCaptcha();
+    }
   });
 
   document.addEventListener('DOMContentLoaded', function() {
-    // Admin buttons
     var closeBtn = document.getElementById('adminClose');
     if (closeBtn) closeBtn.addEventListener('click', closeAdmin);
-
+    var closeX = document.getElementById('adminCloseX');
+    if (closeX) closeX.addEventListener('click', closeAdmin);
     var ov = document.getElementById('adminOverlay');
-    if (ov) ov.addEventListener('click', function(e) {
-      if (e.target === this) closeAdmin();
-    });
+    if (ov) ov.addEventListener('click', function(e) { if (e.target === this) closeAdmin(); });
 
     var rigWinBtn = document.getElementById('rigWin');
-    if (rigWinBtn) rigWinBtn.addEventListener('click', function() {
-      rig.forceNext = 'win';
-      updateAdminStats();
-      showToast('Следующий спин: ПОБЕДА');
-    });
+    if (rigWinBtn) rigWinBtn.addEventListener('click', function() { setRigForTarget('win'); });
     var rigLoseBtn = document.getElementById('rigLose');
-    if (rigLoseBtn) rigLoseBtn.addEventListener('click', function() {
-      rig.forceNext = 'lose';
-      updateAdminStats();
-      showToast('Следующий спин: ПРОИГРЫШ');
-    });
+    if (rigLoseBtn) rigLoseBtn.addEventListener('click', function() { setRigForTarget('lose'); });
     var rigJackpotBtn = document.getElementById('rigJackpot');
-    if (rigJackpotBtn) rigJackpotBtn.addEventListener('click', function() {
-      rig.forceNext = 'jackpot';
-      updateAdminStats();
-      showToast('Следующий спин: ДЖЕКПОТ');
-    });
+    if (rigJackpotBtn) rigJackpotBtn.addEventListener('click', function() { setRigForTarget('jackpot'); });
     var rigClearBtn = document.getElementById('rigClear');
-    if (rigClearBtn) rigClearBtn.addEventListener('click', function() {
-      rig.forceNext = null;
-      updateAdminStats();
-      showToast('Подкрутка сброшена');
+    if (rigClearBtn) rigClearBtn.addEventListener('click', clearRigForTarget);
+
+    var rigTargetMe = document.getElementById('rigTargetMe');
+    if (rigTargetMe) rigTargetMe.addEventListener('click', function() {
+      rigTargetId = null;
+      document.getElementById('rigTargetInput').value = '';
+      showToast('Цель: я');
+      loadAdminPlayers();
     });
+    var rigTargetClear = document.getElementById('rigTargetClear');
+    if (rigTargetClear) rigTargetClear.addEventListener('click', function() {
+      rigTargetId = null;
+      document.getElementById('rigTargetInput').value = '';
+      showToast('Цель очищена');
+      loadAdminPlayers();
+    });
+
     var rigChanceSet = document.getElementById('rigChanceSet');
     if (rigChanceSet) rigChanceSet.addEventListener('click', function() {
       var v = parseInt(document.getElementById('rigChanceInput').value, 10);
@@ -2542,17 +2420,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     var dangerResetMyStats = document.getElementById('dangerResetMyStats');
     if (dangerResetMyStats) dangerResetMyStats.addEventListener('click', function() {
-      if (!confirm('Обнулить свой прогресс? Баланс станет 1000 ₽, а запись в лидерборде удалится.')) return;
+      if (!confirm('Обнулить свой прогресс?')) return;
       state.balance = CONFIG.bet.start;
       state.bet = CONFIG.bet.min;
       lastSentBalance = -1;
       updateUI();
       saveStore();
       window.FB.deleteDoc(window.FB.doc(window.FB.db, 'scores', player.id))
-        .then(function() {
-          showToast('Прогресс обнулён');
-          loadAdminPlayers();
-        })
+        .then(function() { showToast('Прогресс обнулён'); loadAdminPlayers(); })
         .catch(function(err) { showToast('Ошибка: ' + err.message); });
     });
   });
@@ -2570,47 +2445,30 @@ document.addEventListener('DOMContentLoaded', function() {
     el.soundToggle.addEventListener('click', toggleSound);
     el.captchaSubmit.addEventListener('click', submitCaptcha);
     el.captchaCancel.addEventListener('click', closeCaptcha);
-    el.captchaInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') submitCaptcha();
-    });
+    el.captchaInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitCaptcha(); });
     document.getElementById('promoBtn').addEventListener('click', openPromo);
     document.getElementById('promoCancel').addEventListener('click', closePromo);
     document.getElementById('promoSubmit').addEventListener('click', submitPromo);
-    document.getElementById('promoInput').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') submitPromo();
-    });
-    document.getElementById('promoOverlay').addEventListener('click', function(e) {
-      if (e.target === this) closePromo();
-    });
+    document.getElementById('promoInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitPromo(); });
+    document.getElementById('promoOverlay').addEventListener('click', function(e) { if (e.target === this) closePromo(); });
     document.getElementById('leaderboardBtn').addEventListener('click', openLeaderboard);
     document.getElementById('leaderboardClose').addEventListener('click', closeLeaderboard);
-    document.getElementById('leaderboardOverlay').addEventListener('click', function(e) {
-      if (e.target === this) closeLeaderboard();
-    });
-  } catch(e) {
-    showError('bind buttons: ' + e.message);
-  }
+    document.getElementById('leaderboardOverlay').addEventListener('click', function(e) { if (e.target === this) closeLeaderboard(); });
+  } catch(e) { showError('bind buttons: ' + e.message); }
 
   try { loadStore(); } catch(e) {}
-
   try {
     for (var r = 0; r < REELS_COUNT; r++) {
-      for (var row = 0; row < ROWS; row++) {
-        setCell(r, row, rndEmoji());
-      }
+      for (var row = 0; row < ROWS; row++) setCell(r, row, rndEmoji());
     }
   } catch(e) { showError('fill cells: ' + e.message); }
-
   try { renderHistory(); } catch(e) {}
   el.soundToggle.classList.toggle('off', !state.soundOn);
   el.soundToggle.textContent = state.soundOn ? '🔊' : '🔇';
-
   updateJackpotUI();
   updateUI();
-
   setTimeout(sendScoreToLeaderboard, 2000);
   setTimeout(loadJackpot, 1500);
-
   document.addEventListener('touchstart', function unlock() {
     try { ensureAudio(); } catch(e) {}
     document.removeEventListener('touchstart', unlock);
