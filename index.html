@@ -341,6 +341,20 @@
   }
   .paytable b { color: #d4af37; }
 
+  .jackpot-flash {
+    position: fixed; inset: 0;
+    background: radial-gradient(circle, rgba(255,215,0,0.9) 0%, rgba(255,215,0,0) 70%);
+    pointer-events: none;
+    z-index: 90;
+    opacity: 0;
+  }
+  .jackpot-flash.show { animation: jackpotFlashAnim 1.5s ease-out; }
+  @keyframes jackpotFlashAnim {
+    0% { opacity: 0; }
+    20% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
   .gold-rain {
     position: fixed; inset: 0;
     pointer-events: none; z-index: 100;
@@ -363,8 +377,7 @@
     background: rgba(0,0,0,0.75);
     z-index: 200;
     display: none;
-    align-items: center;
-    justify-content: center;
+    align-items: center; justify-content: center;
     padding: 20px;
   }
   .captcha-overlay.show { display: flex; }
@@ -375,26 +388,22 @@
     padding: 22px 20px;
     box-shadow: 0 0 60px rgba(212,175,55,0.6);
     max-width: 340px;
-    width: 100%;
-    text-align: center;
+    width: 100%; text-align: center;
   }
   .captcha-title {
     font-size: 13px; color: #d4af37;
     text-transform: uppercase;
     letter-spacing: 2px;
-    margin-bottom: 8px;
-    font-weight: 800;
+    margin-bottom: 8px; font-weight: 800;
   }
   .captcha-prize {
     font-size: 26px; color: #3fa04a;
-    font-weight: 900;
-    margin-bottom: 16px;
+    font-weight: 900; margin-bottom: 16px;
     text-shadow: 0 0 14px rgba(63,160,74,0.8);
   }
   .captcha-question {
     font-size: 28px; font-weight: 900;
-    color: #fff;
-    margin-bottom: 14px;
+    color: #fff; margin-bottom: 14px;
     font-variant-numeric: tabular-nums;
   }
   .captcha-input {
@@ -553,10 +562,8 @@
   }
   .admin-close-x {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 44px;
-    height: 44px;
+    top: 8px; right: 8px;
+    width: 44px; height: 44px;
     background: linear-gradient(180deg, #ff4444, #aa1111);
     color: #fff;
     border: 3px solid #ff8888;
@@ -663,7 +670,6 @@
     border: 1px solid rgba(255,68,68,0.2);
     font-size: 12px;
     cursor: pointer;
-    transition: background 0.2s;
   }
   .admin-player-row.selected {
     background: rgba(255,215,0,0.15);
@@ -756,6 +762,7 @@
 <body>
 
 <div id="debugBanner"></div>
+<div class="jackpot-flash" id="jackpotFlash"></div>
 <div class="gold-rain" id="goldRain"></div>
 
 <div class="captcha-overlay" id="promoOverlay">
@@ -846,10 +853,10 @@
     </div>
 
     <div class="admin-section" id="adminRig">
-      <div class="admin-label">Цель подкрутки (тапни игрока в списке):</div>
+      <div class="admin-label">Цель подкрутки:</div>
       <input class="admin-input" id="rigTargetInput" placeholder="Я сам (по умолчанию)" readonly>
 
-      <div class="admin-label">Выбери игрока:</div>
+      <div class="admin-label">Тапни игрока для выбора цели:</div>
       <div id="rigPlayersList" style="max-height:200px;overflow-y:auto;margin-bottom:6px;">
         <div style="text-align:center;color:#888;padding:10px;">Загрузка...</div>
       </div>
@@ -895,7 +902,7 @@
     <div class="admin-section" id="adminDanger">
       <div class="admin-label" style="color:#ff4444;">⚠️ Опасные действия</div>
 
-      <button class="admin-btn orange" id="dangerResetLeaderboard" style="width:100%;margin-bottom:6px;">🔄 ОБНУЛИТЬ ЛИДЕРБОРД (игроки остаются)</button>
+      <button class="admin-btn red" id="dangerResetLeaderboard" style="width:100%;margin-bottom:6px;">🔄 ПОЛНОЕ ОБНУЛЕНИЕ (балансы + рекорды)</button>
       <button class="admin-btn red" id="dangerClearKeepMe" style="width:100%;margin-bottom:6px;">🗑️ Удалить всех, КРОМЕ меня</button>
       <button class="admin-btn red" id="dangerClearAll" style="width:100%;margin-bottom:6px;">🗑️ Удалить ВСЕХ игроков</button>
       <button class="admin-btn orange" id="dangerResetJackpot" style="width:100%;margin-bottom:6px;">👑 Сбросить джекпот к 1М</button>
@@ -1027,7 +1034,7 @@ document.addEventListener('DOMContentLoaded', function() {
     spinDuration: 1500,
     reelStagger: 250,
     historyLen: 5,
-    storageKey: 'slot_v21',
+    storageKey: 'slot_v22',
     jackpot: { start: JACKPOT_START, contributionPct: JACKPOT_CONTRIBUTION },
   };
 
@@ -1086,6 +1093,30 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   setInterval(checkPendingRig, 2500);
 
+  // ⚡ Проверка глобального сброса
+  function checkGlobalReset() {
+    if (!window.FB || !window.FB.ready) return;
+    window.FB.getDoc(window.FB.doc(window.FB.db, 'global', 'resetFlag')).then(function(snap) {
+      if (!snap || !snap.exists || !snap.exists()) return;
+      var data = snap.data();
+      if (!data || !data.timestamp) return;
+      var lastReset = 0;
+      try { lastReset = Number(localStorage.getItem('slot_last_reset')) || 0; } catch(e) {}
+      if (data.timestamp > lastReset) {
+        state.balance = CONFIG.bet.start;
+        state.bet = CONFIG.bet.min;
+        state.history = [];
+        lastSentBalance = -1;
+        try { localStorage.setItem('slot_last_reset', String(data.timestamp)); } catch(e) {}
+        saveStore();
+        renderHistory();
+        updateUI();
+        sendScoreToLeaderboard();
+        showToast('🔄 Лидерборд обнулён — начинаешь заново');
+      }
+    }).catch(function(){});
+  }
+
   function sendScoreToLeaderboard() {
     try {
       if (!window.FB || !window.FB.ready) return;
@@ -1125,29 +1156,41 @@ document.addEventListener('DOMContentLoaded', function() {
     window.FB.getDocs(window.FB.collection(window.FB.db, 'scores'))
       .then(function(snap) {
         var list = [];
+        var myBest = 0;
         snap.forEach(function(d) {
           var v = d.data() || {};
-          list.push({
+          var entry = {
             playerId: v.playerId || d.id,
             playerName: v.playerName || 'Игрок',
             maxBalance: Number(v.maxBalance) || 0,
-          });
+          };
+          list.push(entry);
+          if (entry.playerId === player.id) myBest = entry.maxBalance;
         });
         list.sort(function(a, b) { return b.maxBalance - a.maxBalance; });
-        list = list.slice(0, 10);
-        if (list.length === 0) { listEl.innerHTML = '<div class="leaderboard-status">Пока никто не играл 🎰</div>'; return; }
+        var top = list.slice(0, 10);
+
         var html = '';
-        list.forEach(function(row, i) {
-          var rank = i + 1;
-          var medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank;
-          var cls = 'leaderboard-row';
-          if (rank <= 3) cls += ' top' + rank;
-          if (row.playerId === player.id) cls += ' me';
-          var name = (row.playerName || 'Игрок').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          var balance = Math.round(row.maxBalance || 0).toLocaleString('ru-RU') + ' ₽';
-          html += '<div class="' + cls + '"><span class="lb-rank">' + medal + '</span>'
-            + '<span class="lb-name">' + name + '</span><span class="lb-balance">' + balance + '</span></div>';
-        });
+        html += '<div style="background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.4);border-radius:8px;padding:8px 10px;margin-bottom:8px;text-align:center;">'
+          + '<div style="font-size:10px;color:#ffd700;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">Твой лучший результат</div>'
+          + '<div style="font-size:16px;font-weight:900;color:#ffd700;font-variant-numeric:tabular-nums;">' + fmt(myBest) + '</div>'
+          + '</div>';
+
+        if (top.length === 0) {
+          html += '<div class="leaderboard-status">Пока никто не играл 🎰</div>';
+        } else {
+          top.forEach(function(row, i) {
+            var rank = i + 1;
+            var medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank;
+            var cls = 'leaderboard-row';
+            if (rank <= 3) cls += ' top' + rank;
+            if (row.playerId === player.id) cls += ' me';
+            var name = (row.playerName || 'Игрок').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            var balance = Math.round(row.maxBalance || 0).toLocaleString('ru-RU') + ' ₽';
+            html += '<div class="' + cls + '"><span class="lb-rank">' + medal + '</span>'
+              + '<span class="lb-name">' + name + '</span><span class="lb-balance">' + balance + '</span></div>';
+          });
+        }
         listEl.innerHTML = html;
       })
       .catch(function(err) {
@@ -1216,6 +1259,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   initPlayerIdentity();
   setTimeout(checkPendingRig, 1500);
+  setTimeout(checkGlobalReset, 1200);
+  setInterval(checkGlobalReset, 10000);
 
   var PAYOUTS3 = {}, PAYOUTS4 = {}, PAYOUTS5 = {};
   CONFIG.symbols.forEach(function(s) {
@@ -1259,6 +1304,7 @@ document.addEventListener('DOMContentLoaded', function() {
     history: $('history'), soundToggle: $('soundToggle'),
     reelsBox: $('reels'), lightningSvg: $('lightningSvg'),
     jackpotValue: $('jackpotValue'), goldRain: $('goldRain'),
+    jackpotFlash: $('jackpotFlash'),
     captchaOverlay: $('captchaOverlay'), captchaQuestion: $('captchaQuestion'),
     captchaInput: $('captchaInput'), captchaError: $('captchaError'),
     captchaSubmit: $('captchaSubmit'), captchaCancel: $('captchaCancel'),
@@ -1301,10 +1347,18 @@ document.addEventListener('DOMContentLoaded', function() {
   var Sound = {
     click: function() { beep(600, 0.05, 0.08); },
     stop:  function() { beep(300, 0.1, 0.12, 'sine'); },
-    win:   function() { [523,659,784,1046].forEach(function(f,i){ setTimeout(function(){beep(f,0.15,0.18,'sine');}, i*90); }); },
-    bigWin:function() { [523,659,784,1046,1318].forEach(function(f,i){ setTimeout(function(){beep(f,0.2,0.22,'triangle');}, i*80); }); },
+    winSmall: function() { [659, 784].forEach(function(f,i){ setTimeout(function(){beep(f,0.12,0.15,'sine');}, i*80); }); },
+    winMedium: function() { [523, 659, 784, 1046].forEach(function(f,i){ setTimeout(function(){beep(f,0.15,0.18,'sine');}, i*90); }); },
+    bigWin:function() { [523,659,784,1046,1318,1568].forEach(function(f,i){ setTimeout(function(){beep(f,0.2,0.22,'triangle');}, i*80); }); },
     miss:  function() { beep(150, 0.2, 0.1, 'sawtooth'); },
-    jackpot:function() { [523,659,784,1046,1318,1568,2093].forEach(function(f,i){ setTimeout(function(){beep(f,0.35,0.25,'triangle');}, i*150); }); }
+    jackpot: function() {
+      [523,659,784,1046,1318,1568,2093].forEach(function(f,i){ setTimeout(function(){beep(f,0.3,0.25,'triangle');}, i*120); });
+      setTimeout(function() {
+        [523, 659, 784].forEach(function(f, i) {
+          setTimeout(function() { beep(f, 1.5, 0.15, 'sine'); }, i * 100);
+        });
+      }, 1000);
+    }
   };
 
   function rndEmoji() { return WEIGHTED[Math.floor(Math.random() * WEIGHTED.length)]; }
@@ -1563,17 +1617,33 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isJackpot) setMessage('👑 ДЖЕКПОТ! ' + winText, 'jackpot', '#00ffff');
     else if (totalWin > 0) setMessage(winText, 'win', '#ffd700');
     else setMessage('Промах!', null, '#d4af37');
+
     if (isJackpot) {
       el.machine.classList.add('mega-shake');
-      Sound.jackpot(); startGoldRain(5500);
+      Sound.jackpot();
+      startGoldRain(5500);
+      if (el.jackpotFlash) {
+        el.jackpotFlash.classList.remove('show');
+        void el.jackpotFlash.offsetWidth;
+        el.jackpotFlash.classList.add('show');
+      }
       vibrate([200, 100, 200, 100, 200, 100, 400]);
       shakeTimer = setTimeout(function(){ el.machine.classList.remove('mega-shake'); }, 3500);
-    } else if (totalWin >= state.bet * 20) {
-      el.machine.classList.add('shake'); Sound.bigWin();
-      vibrate([100, 50, 100, 50, 200]);
+    } else if (totalWin >= state.bet * 50) {
+      el.machine.classList.add('shake');
+      Sound.bigWin();
+      vibrate([80, 40, 80, 40, 120]);
       shakeTimer = setTimeout(function(){ el.machine.classList.remove('shake'); }, 900);
-    } else if (totalWin > 0) { Sound.win(); vibrate([60, 30, 60]); }
-    else Sound.miss();
+    } else if (totalWin >= state.bet * 10) {
+      Sound.winMedium();
+      vibrate([60, 30, 60]);
+    } else if (totalWin > 0) {
+      Sound.winSmall();
+      vibrate(40);
+    } else {
+      Sound.miss();
+    }
+
     var lifetime = isJackpot ? 5000 : 2200;
     messageTimer = setTimeout(function() {
       document.querySelectorAll('.cell.hit').forEach(function(c){ c.classList.remove('hit'); });
@@ -1653,12 +1723,16 @@ document.addEventListener('DOMContentLoaded', function() {
   function spin() {
     try {
       if (state.spinning) return;
+      var now = Date.now();
+      if (spin._last && now - spin._last < 500) return;
+      spin._last = now;
       if (state.balance < state.bet) {
         state.outOfFunds = state.balance < CONFIG.bet.min;
         updateUI();
         vibrate(200);
         return;
       }
+      checkGlobalReset();
       resetAllEffects();
       state.spinning = true;
       state.balance -= state.bet;
@@ -1808,7 +1882,7 @@ document.addEventListener('DOMContentLoaded', function() {
       vibrate(150);
       return;
     }
-    vibrate(30); Sound.win();
+    vibrate(30); Sound.winMedium();
     state.balance += CONFIG.bet.add;
     state.outOfFunds = false;
     closeCaptcha(); clearMessage();
@@ -1842,7 +1916,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var raw = String(input.value || '').trim().toLowerCase();
     if (!raw) { err.textContent = 'Введи промокод'; return; }
     if (raw !== PROMO_CODE) { err.textContent = 'Неверный промокод'; input.value = ''; vibrate(150); return; }
-    vibrate([50, 50, 100]); Sound.win();
+    vibrate([50, 50, 100]); Sound.bigWin();
     state.balance += PROMO_AMOUNT;
     state.outOfFunds = false;
     try { localStorage.setItem('slot_promo_used', '1'); } catch(e) {}
@@ -1921,7 +1995,8 @@ document.addEventListener('DOMContentLoaded', function() {
       list.forEach(function(row) {
         var safeId = String(row.id).replace(/"/g, '&quot;');
         var safeName = String(row.name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        html += '<div class="admin-player-row" data-player-id="' + safeId + '">'
+        var sel = (rigTargetId === row.id) ? ' selected' : '';
+        html += '<div class="admin-player-row' + sel + '" data-player-id="' + safeId + '">'
           + '<div class="admin-player-info">'
           + '<div class="admin-player-name">' + safeName + '</div>'
           + '<div class="admin-player-balance">' + fmt(row.balance) + '</div>'
@@ -1932,8 +2007,6 @@ document.addEventListener('DOMContentLoaded', function() {
           + '</div></div>';
       });
       listEl.innerHTML = html;
-
-      // Тап по строке — выбрать для подкрутки
       listEl.querySelectorAll('.admin-player-row').forEach(function(row) {
         row.addEventListener('click', function(e) {
           if (e.target.closest('button')) return;
@@ -1942,7 +2015,7 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('rigTargetInput').value = id;
           loadAdminPlayers();
           loadRigPlayers();
-          showToast('Цель подкрутки: ' + id.slice(0, 12));
+          showToast('Цель: ' + id.slice(0, 12));
         });
       });
       listEl.querySelectorAll('[data-select-money]').forEach(function(btn) {
@@ -2043,32 +2116,38 @@ document.addEventListener('DOMContentLoaded', function() {
       }).catch(function(){});
   }
 
-  // ⚡ ОБНУЛЕНИЕ ЛИДЕРБОРДА — игроки остаются, но их maxBalance = текущий баланс
+  // ⚡ ПОЛНОЕ ОБНУЛЕНИЕ ЛИДЕРБОРДА + ЛОКАЛЬНЫХ БАЛАНСОВ
   function resetLeaderboard() {
     if (!window.FB || !window.FB.ready) return;
+    var resetTime = Date.now();
+
     window.FB.getDocs(window.FB.collection(window.FB.db, 'scores')).then(function(snap) {
       var promises = [];
-      var count = 0;
       snap.forEach(function(d) {
-        var v = d.data() || {};
-        var current = Number(v.currentBalance);
-        if (isNaN(current)) current = Number(v.maxBalance) || 0;
-        // Обнуляем maxBalance до текущего баланса — рекорды стираются
-        promises.push(window.FB.setDoc(window.FB.doc(window.FB.db, 'scores', d.id), {
-          playerId: v.playerId || d.id,
-          playerName: v.playerName || 'Игрок',
-          maxBalance: Math.max(0, Math.floor(current)),
-          currentBalance: Math.max(0, Math.floor(current)),
-          updatedAt: new Date().toISOString(),
-        }));
-        count++;
+        promises.push(window.FB.deleteDoc(window.FB.doc(window.FB.db, 'scores', d.id)));
       });
-      Promise.all(promises).then(function() {
-        showToast('Обнулено рекордов: ' + count);
-        loadAdminPlayers();
-        loadRigPlayers();
-        updateAdminStats();
-      }).catch(function(err) { showToast('Ошибка'); });
+      return Promise.all(promises);
+    }).then(function() {
+      return window.FB.setDoc(window.FB.doc(window.FB.db, 'global', 'resetFlag'), {
+        timestamp: resetTime,
+        requestedBy: player.id,
+      });
+    }).then(function() {
+      state.balance = CONFIG.bet.start;
+      state.bet = CONFIG.bet.min;
+      state.history = [];
+      lastSentBalance = -1;
+      try { localStorage.setItem('slot_last_reset', String(resetTime)); } catch(e) {}
+      saveStore();
+      renderHistory();
+      updateUI();
+      sendScoreToLeaderboard();
+      showToast('🔄 Лидерборд и балансы сброшены');
+      loadAdminPlayers();
+      loadRigPlayers();
+      updateAdminStats();
+    }).catch(function(err) {
+      showToast('Ошибка: ' + err.message);
     });
   }
 
@@ -2121,21 +2200,14 @@ document.addEventListener('DOMContentLoaded', function() {
       .catch(function(){});
   }
 
-  // ============================================================
-  //  ПРИВЯЗКА ВСЕХ ОБРАБОТЧИКОВ (в основном DOMContentLoaded)
-  // ============================================================
-
-  // Тап по лого
+  // ---------- ПРИВЯЗКА ВСЕХ ОБРАБОТЧИКОВ ----------
   document.getElementById('titleLogo').addEventListener('click', onLogoTap);
-
-  // Админ-кнопки
   document.getElementById('adminCloseX').addEventListener('click', closeAdmin);
   document.getElementById('adminClose').addEventListener('click', closeAdmin);
   document.getElementById('adminOverlay').addEventListener('click', function(e) {
     if (e.target === this) closeAdmin();
   });
 
-  // Табы
   document.querySelectorAll('.admin-tab').forEach(function(tab) {
     tab.addEventListener('click', function() {
       var t = tab.getAttribute('data-tab');
@@ -2151,7 +2223,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Подкрутка
   document.getElementById('rigWin').addEventListener('click', function() { setRigForTarget('win'); });
   document.getElementById('rigLose').addEventListener('click', function() { setRigForTarget('lose'); });
   document.getElementById('rigJackpot').addEventListener('click', function() { setRigForTarget('jackpot'); });
@@ -2169,14 +2240,12 @@ document.addEventListener('DOMContentLoaded', function() {
     showToast('Сброшено');
   });
 
-  // Джекпот
   document.getElementById('adminJackpotSetBtn').addEventListener('click', function() {
     var v = parseInt(document.getElementById('adminJackpotInput').value, 10);
     if (isNaN(v)) { showToast('Введи число'); return; }
     setJackpotValue(v);
   });
 
-  // Деньги выбранному
   document.querySelector('[data-action="target-add"]').addEventListener('click', function() {
     var amt = parseInt(document.getElementById('adminAmountInput').value, 10);
     if (isNaN(amt)) { showToast('Введи сумму'); return; }
@@ -2188,7 +2257,6 @@ document.addEventListener('DOMContentLoaded', function() {
     applyToTargetPlayer(amt, true);
   });
 
-  // Кнопки +1М, +10М и т.д. (через делегирование)
   document.addEventListener('click', function(e) {
     if (!isAdmin) return;
     var t = e.target;
@@ -2213,9 +2281,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // Опасные действия
   document.getElementById('dangerResetLeaderboard').addEventListener('click', function() {
-    if (!confirm('Обнулить лидерборд? Балансы игроков СОХРАНЯТСЯ, но все рекорды (maxBalance) сбросятся до их текущего баланса. Продолжить?')) return;
+    if (!confirm('ПОЛНОЕ ОБНУЛЕНИЕ?\n\nВсе игроки потеряют свой баланс (станет 1000 ₽) и таблица лидерборда очистится. Продолжить?')) return;
     resetLeaderboard();
   });
   document.getElementById('dangerClearKeepMe').addEventListener('click', function() {
@@ -2242,14 +2309,12 @@ document.addEventListener('DOMContentLoaded', function() {
       .catch(function(){});
   });
 
-  // Esc
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       closeAdmin(); closeLeaderboard(); closePromo(); closeCaptcha();
     }
   });
 
-  // Игровые кнопки
   el.spinBtn.addEventListener('click', spin);
   el.betHalf.addEventListener('click', betHalf);
   el.betX2.addEventListener('click', betX2);
@@ -2271,7 +2336,6 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('leaderboardClose').addEventListener('click', closeLeaderboard);
   document.getElementById('leaderboardOverlay').addEventListener('click', function(e) { if (e.target === this) closeLeaderboard(); });
 
-  // Инициализация
   try { loadStore(); } catch(e) {}
   try {
     for (var r = 0; r < REELS_COUNT; r++) {
