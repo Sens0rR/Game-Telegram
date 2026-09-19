@@ -1065,7 +1065,6 @@ document.addEventListener('DOMContentLoaded', function() {
   var player = { id: '', name: 'Игрок', telegramId: null };
   var isAdmin = false;
 
-  // ---------- СОСТОЯНИЕ ----------
   var state = {
     balance: CONFIG.bet.start, bet: CONFIG.bet.min, jackpot: CONFIG.jackpot.start,
     spinning: false, outOfFunds: false, history: [], soundOn: true,
@@ -1074,7 +1073,6 @@ document.addEventListener('DOMContentLoaded', function() {
   var lastSentBalance = -1;
   var rig = { forceNext: null, globalChance: null };
 
-  // ---------- ИДЕНТИФИКАЦИЯ ----------
   function initPlayerIdentity() {
     try {
       if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
@@ -1090,8 +1088,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     } catch(e) {}
-
-    // Fallback на локальный ID
     try {
       var localId = localStorage.getItem('slot_player_id');
       var localName = localStorage.getItem('slot_player_name');
@@ -1107,11 +1103,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // ---------- FIRESTORE: СИНХРОНИЗАЦИЯ ----------
   function checkPendingRig() {
     if (!window.FB || !window.FB.ready) return;
     if (!player.id) return;
-    if (document.hidden) return; // не крутим в фоне
+    if (document.hidden) return;
     window.FB.getDoc(window.FB.doc(window.FB.db, 'rigs', player.id)).then(function(snap) {
       if (snap && snap.exists && snap.exists()) {
         var d = snap.data();
@@ -1158,7 +1153,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.FB.getDoc(window.FB.doc(window.FB.db, 'scores', player.id)).then(function(snap) {
       if (snap && snap.exists && snap.exists()) {
         var data = snap.data() || {};
-        // Берём currentBalance (актуальный баланс), fallback на maxBalance
         var cloud = Number(data.currentBalance);
         if (isNaN(cloud)) cloud = Number(data.maxBalance) || 0;
         if (cloud > state.balance) {
@@ -1314,7 +1308,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function closeLeaderboard() { document.getElementById('leaderboardOverlay').classList.remove('show'); }
 
-  // ---------- ИГРОВАЯ ЛОГИКА ----------
   var PAYOUTS3 = {}, PAYOUTS4 = {}, PAYOUTS5 = {};
   CONFIG.symbols.forEach(function(s) {
     PAYOUTS3[s.emoji] = s.pay3;
@@ -1653,6 +1646,13 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function showWinVisual(wins, totalWin, isJackpot) {
+    // ⚡ ЗАЩИТА: если выигрыш > 0, но меньше ставки — поднимаем до ставки
+    if (!isJackpot && totalWin > 0 && totalWin < state.bet) {
+      var diff = state.bet - totalWin;
+      state.balance += diff;
+      totalWin = state.bet;
+    }
+
     clearAllTimers();
     document.querySelectorAll('.cell.hit').forEach(function(c){ c.classList.remove('hit'); });
     clearLightning();
@@ -1822,7 +1822,11 @@ document.addEventListener('DOMContentLoaded', function() {
           wins2.forEach(function(w){ totalWin += state.bet * w.payout; });
           totalWin = Math.floor(totalWin);
           state.spinning = false;
+
+          // Форс-проигрыш от админа — всегда 0
           if (forced === 'lose' || rigResult.result === 'lose') totalWin = 0;
+
+          // Мягкий потолок: около лимита просто ЧАЩЕ проигрыш, но если выиграл — полная сумма
           var suppressChance = 0;
           if (state.balance >= SOFT_CAP_START) {
             var progress = (state.balance - SOFT_CAP_START) / (SOFT_CAP_END - SOFT_CAP_START);
@@ -1830,26 +1834,44 @@ document.addEventListener('DOMContentLoaded', function() {
             suppressChance = progress * 0.98;
           }
           var suppressed = totalWin > 0 && Math.random() < suppressChance && forced !== 'win';
-          if (totalWin > 0 && !suppressed) {
-            var balanceFactor = 1;
-            if (state.balance >= SOFT_CAP_START && forced !== 'win') {
-              balanceFactor = Math.max(0, 1 - (state.balance - SOFT_CAP_START) / (SOFT_CAP_END - SOFT_CAP_START));
-              balanceFactor = balanceFactor * balanceFactor * balanceFactor;
-              if (balanceFactor < 0.001) balanceFactor = 0.001;
-            }
-            totalWin = Math.floor(totalWin * balanceFactor);
-            if (totalWin > 0) {
-              state.balance += totalWin;
-              var anyBig = wins2.some(function(w){ return w.length >= 4; });
-              showWinVisual(wins2, totalWin, false);
-              pushHistory(anyBig ? 'big' : 'win');
+
+          // Если suppress сработал — визуально показываем как проигрыш (символы уже рандомные)
+          if (suppressed) {
+            // Найдём выигрышные ячейки и заменим их на случайные символы БЕЗ выигрыша
+            var hitCells = {};
+            wins2.forEach(function(w) {
+              w.path.forEach(function(p) { hitCells[p.reel + ',' + p.row] = true; });
+            });
+            Object.keys(hitCells).forEach(function(k) {
+              var parts = k.split(',');
+              var rr = parseInt(parts[0], 10);
+              var rw = parseInt(parts[1], 10);
+              var newSym = rndEmoji();
+              while (newSym === DIAMOND) newSym = rndEmoji();
+              setCell(rr, rw, newSym);
+            });
+            // Перечитываем сетку
+            var grid3 = readGrid();
+            var wins3 = dedupeWins(findAllWinsLR(grid3));
+            var totalWin2 = 0;
+            wins3.forEach(function(w){ totalWin2 += state.bet * w.payout; });
+            totalWin2 = Math.floor(totalWin2);
+
+            if (totalWin2 > 0) {
+              state.balance += totalWin2;
+              var anyBig2 = wins3.some(function(w){ return w.length >= 4; });
+              showWinVisual(wins3, totalWin2, false);
+              pushHistory(anyBig2 ? 'big' : 'win');
             } else {
-              showWinVisual(wins2, 0, false);
+              showMiss();
               pushHistory('miss');
             }
-          } else if (suppressed || forced === 'lose' || rigResult.result === 'lose') {
-            showWinVisual(wins2, 0, false);
-            pushHistory('miss');
+          } else if (totalWin > 0) {
+            // Полная сумма — БЕЗ уменьшения
+            state.balance += totalWin;
+            var anyBig = wins2.some(function(w){ return w.length >= 4; });
+            showWinVisual(wins2, totalWin, false);
+            pushHistory(anyBig ? 'big' : 'win');
           } else {
             showMiss();
             pushHistory('miss');
@@ -2435,7 +2457,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('leaderboardClose').addEventListener('click', closeLeaderboard);
   document.getElementById('leaderboardOverlay').addEventListener('click', function(e) { if (e.target === this) closeLeaderboard(); });
 
-  // ---------- ИНИЦИАЛИЗАЦИЯ (правильный порядок!) ----------
+  // ---------- ИНИЦИАЛИЗАЦИЯ ----------
   initPlayerIdentity();
   try { loadStore(); } catch(e) {}
 
@@ -2451,7 +2473,6 @@ document.addEventListener('DOMContentLoaded', function() {
   updateJackpotUI();
   updateUI();
 
-  // Отложенные синхронизации — только ПОСЛЕ loadStore()
   setTimeout(checkGlobalReset, 1200);
   setTimeout(sendScoreToLeaderboard, 2000);
   setTimeout(loadJackpot, 1500);
@@ -2463,7 +2484,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.removeEventListener('touchstart', unlock);
   }, { once: true, passive: true });
 
-  // При возврате в игру — синхронизируем баланс
   document.addEventListener('visibilitychange', function() {
     if (!document.hidden) {
       setTimeout(syncBalanceFromCloud, 500);
