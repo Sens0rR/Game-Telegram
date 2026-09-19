@@ -537,7 +537,6 @@
     padding: 20px; font-size: 13px;
   }
 
-  /* ---------- АДМИНКА ---------- */
   .admin-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.92);
@@ -905,6 +904,7 @@
       <button class="admin-btn red" id="dangerResetLeaderboard" style="width:100%;margin-bottom:6px;">🔄 ПОЛНОЕ ОБНУЛЕНИЕ (балансы + рекорды)</button>
       <button class="admin-btn red" id="dangerClearKeepMe" style="width:100%;margin-bottom:6px;">🗑️ Удалить всех, КРОМЕ меня</button>
       <button class="admin-btn red" id="dangerClearAll" style="width:100%;margin-bottom:6px;">🗑️ Удалить ВСЕХ игроков</button>
+      <button class="admin-btn cyan" id="dangerClearResetFlag" style="width:100%;margin-bottom:6px;">✅ Убрать флаг сброса (важно!)</button>
       <button class="admin-btn orange" id="dangerResetJackpot" style="width:100%;margin-bottom:6px;">👑 Сбросить джекпот к 1М</button>
       <button class="admin-btn orange" id="dangerResetMyStats" style="width:100%;margin-bottom:6px;">🔄 Обнулить мой прогресс</button>
     </div>
@@ -1093,15 +1093,20 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   setInterval(checkPendingRig, 2500);
 
-  // ⚡ Проверка глобального сброса
+  // ⚡ Проверка глобального сброса — ТОЛЬКО один раз за сессию
+  var globalResetChecked = false;
   function checkGlobalReset() {
+    if (globalResetChecked) return;
     if (!window.FB || !window.FB.ready) return;
+    globalResetChecked = true;
+
     window.FB.getDoc(window.FB.doc(window.FB.db, 'global', 'resetFlag')).then(function(snap) {
       if (!snap || !snap.exists || !snap.exists()) return;
       var data = snap.data();
       if (!data || !data.timestamp) return;
       var lastReset = 0;
       try { lastReset = Number(localStorage.getItem('slot_last_reset')) || 0; } catch(e) {}
+
       if (data.timestamp > lastReset) {
         state.balance = CONFIG.bet.start;
         state.bet = CONFIG.bet.min;
@@ -1260,7 +1265,6 @@ document.addEventListener('DOMContentLoaded', function() {
   initPlayerIdentity();
   setTimeout(checkPendingRig, 1500);
   setTimeout(checkGlobalReset, 1200);
-  setInterval(checkGlobalReset, 10000);
 
   var PAYOUTS3 = {}, PAYOUTS4 = {}, PAYOUTS5 = {};
   CONFIG.symbols.forEach(function(s) {
@@ -1276,6 +1280,8 @@ document.addEventListener('DOMContentLoaded', function() {
     balance: CONFIG.bet.start, bet: CONFIG.bet.min, jackpot: CONFIG.jackpot.start,
     spinning: false, outOfFunds: false, history: [], soundOn: true,
   };
+
+  var lastSentBalance = -1;
 
   function saveStore() {
     try { if (window.localStorage) localStorage.setItem(CONFIG.storageKey, JSON.stringify({
@@ -1732,7 +1738,6 @@ document.addEventListener('DOMContentLoaded', function() {
         vibrate(200);
         return;
       }
-      checkGlobalReset();
       resetAllEffects();
       state.spinning = true;
       state.balance -= state.bet;
@@ -2167,6 +2172,17 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // ✅ Убрать флаг сброса (важно после того, как все обнулились)
+  function clearResetFlag() {
+    if (!window.FB || !window.FB.ready) return;
+    window.FB.deleteDoc(window.FB.doc(window.FB.db, 'global', 'resetFlag'))
+      .then(function() {
+        showToast('✅ Флаг сброса удалён');
+      }).catch(function() {
+        showToast('Флаг уже отсутствует');
+      });
+  }
+
   function setRigForTarget(force) {
     var target = rigTargetId || player.id;
     if (target === player.id) {
@@ -2292,6 +2308,9 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('dangerClearAll').addEventListener('click', function() {
     if (!confirm('Удалить ВСЕХ игроков?')) return;
     clearAllPlayers(false);
+  });
+  document.getElementById('dangerClearResetFlag').addEventListener('click', function() {
+    clearResetFlag();
   });
   document.getElementById('dangerResetJackpot').addEventListener('click', function() {
     if (!confirm('Сбросить джекпот к 1М?')) return;
