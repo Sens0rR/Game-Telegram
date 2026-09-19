@@ -8,6 +8,36 @@
 <meta name="theme-color" content="#0a0a0a">
 <title>Слот — Фрукты</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, doc, setDoc, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDYBQrw8cUKzvURETRFQRZp_b7F_-jBzAM",
+    authDomain: "slot-leaderboard-82342.firebaseapp.com",
+    projectId: "slot-leaderboard-82342",
+    storageBucket: "slot-leaderboard-82342.firebasestorage.app",
+    messagingSenderId: "95222260909",
+    appId: "1:95222260909:web:678ef5133cdf8ff196d224"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getFirestore(fbApp);
+
+  window.FB = {
+    db: db,
+    doc: doc,
+    collection: collection,
+    setDoc: setDoc,
+    getDocs: getDocs,
+    runTransaction: runTransaction,
+    ready: true
+  };
+  console.log('[Firebase] ready');
+</script>
+
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -66,6 +96,19 @@
     border-radius: 12px;
     padding: 8px 12px;
     box-shadow: 0 0 20px rgba(212,175,55,0.5);
+    position: relative;
+    overflow: hidden;
+  }
+  .jackpot-bar::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,215,0,0.2), transparent);
+    animation: jackpotShine 3s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes jackpotShine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
   }
   .jackpot-label {
     font-size: 12px; font-weight: 800;
@@ -73,6 +116,8 @@
     text-transform: uppercase;
     letter-spacing: 2px;
     white-space: nowrap;
+    position: relative;
+    z-index: 1;
   }
   .jackpot-value {
     font-size: 22px; font-weight: 900;
@@ -80,6 +125,17 @@
     font-variant-numeric: tabular-nums;
     text-shadow: 0 0 12px rgba(255,215,0,0.9);
     letter-spacing: 0.5px;
+    position: relative;
+    z-index: 1;
+    transition: transform 0.3s;
+  }
+  .jackpot-value.grow {
+    animation: jackpotGrow 0.4s ease-out;
+  }
+  @keyframes jackpotGrow {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.12); color: #ffd700; }
+    100% { transform: scale(1); }
   }
 
   .machine {
@@ -269,6 +325,10 @@
     color: #00ffff;
     text-shadow: 0 0 14px #00ffff, 0 0 28px #ffd700;
   }
+  .message.limit {
+    color: #ff8844;
+    text-shadow: 0 0 14px rgba(255,136,68,1);
+  }
 
   .buttons { display: flex; gap: 8px; }
   button.main {
@@ -291,12 +351,6 @@
     border: 2px solid #d4af37;
     box-shadow: 0 5px 0 #4a3510;
     flex: 2;
-  }
-  #resetBtn {
-    background: linear-gradient(180deg, #3a3454, #242040);
-    color: #d4af37;
-    border: 2px solid #4a4468;
-    box-shadow: 0 5px 0 #14102a;
   }
 
   .history {
@@ -625,8 +679,8 @@
 </div>
 
 <div class="jackpot-bar">
-  <span class="jackpot-label">👑 GRAND JACKPOT</span>
-  <span class="jackpot-value" id="jackpotValue">1 000 000 000 ₽</span>
+  <span class="jackpot-label">👑 ОБЩИЙ ДЖЕКПОТ</span>
+  <span class="jackpot-value" id="jackpotValue">1 000 000 ₽</span>
 </div>
 
 <div class="machine" id="machine">
@@ -685,8 +739,7 @@
   <div class="message" id="message">Нажми КРУТИТЬ!</div>
 
   <div class="buttons">
-    <button class="main" id="spinBtn" type="button">КРУТИТЬ</button>
-    <button class="main" id="resetBtn" type="button">СБРОС</button>
+    <button class="main" id="spinBtn" type="button" style="flex:1;">КРУТИТЬ</button>
   </div>
 
   <div class="history" id="history"></div>
@@ -702,9 +755,18 @@
 'use strict';
 
 // ============================================================
-//  🔗 ЛИДЕРБОРД — твой Google Apps Script
+//  💰 ЛИМИТЫ БАЛАНСА
 // ============================================================
-var LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycby9ynSXDZux3m-0AU33sMUQ0i9xaJnidtLzc6vZ5idsT5_VgB5-IuRNgL57wAXDGuXG/exec';
+var HARD_CAP_MIN = 49000000;
+var HARD_CAP_MAX = 51000000;
+var FLOOR = 100;
+
+// ============================================================
+//  👑 ОБЩИЙ ДЖЕКПОТ
+// ============================================================
+var JACKPOT_START = 1000000;        // стартовый банк
+var JACKPOT_CAP = 500000000;        // потолок банка
+var JACKPOT_CONTRIBUTION = 0.03;    // 3% от ставки идёт в банк
 
 function showError(msg) {
   var b = document.getElementById('debugBanner');
@@ -733,10 +795,10 @@ document.addEventListener('DOMContentLoaded', function() {
     spinDuration: 1500,
     reelStagger: 250,
     historyLen: 5,
-    storageKey: 'slot_v15',
+    storageKey: 'slot_v17',
     jackpot: {
-      start: 1000000000,
-      contributionPct: 0.005,
+      start: JACKPOT_START,
+      contributionPct: JACKPOT_CONTRIBUTION,
     },
   };
 
@@ -745,7 +807,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var DIAMOND = '💎';
   var RUB = ' ₽';
 
-  // ---------- ИДЕНТИФИКАЦИЯ ----------
+  // ---------- ИДЕНТИФИКАЦИЯ ИГРОКА ----------
   var player = { id: '', name: 'Игрок' };
 
   function initPlayerIdentity() {
@@ -780,11 +842,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // ---------- ОТПРАВКА ОЧКОВ ----------
+  // ---------- FIRESTORE: ОТПРАВКА БАЛАНСА ----------
   var lastSentBalance = -1;
   function sendScoreToLeaderboard() {
     try {
-      if (!LEADERBOARD_URL) return;
+      if (!window.FB || !window.FB.ready) return;
       var now = Date.now();
       if (sendScoreToLeaderboard._last && now - sendScoreToLeaderboard._last < 5000) return;
       sendScoreToLeaderboard._last = now;
@@ -792,40 +854,64 @@ document.addEventListener('DOMContentLoaded', function() {
       if (rounded === lastSentBalance) return;
       lastSentBalance = rounded;
 
-      var payload = {
-        playerId: player.id,
-        playerName: player.name,
-        balance: rounded,
-      };
+      var ref = window.FB.doc(window.FB.db, 'scores', player.id);
 
-      fetch(LEADERBOARD_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload),
-      }).catch(function(){});
-    } catch(e) {}
+      window.FB.getDocs(window.FB.collection(window.FB.db, 'scores')).then(function(snap) {
+        var oldMax = 0;
+        snap.forEach(function(d) {
+          if (d.id === player.id) {
+            var v = d.data();
+            if (v && typeof v.maxBalance === 'number') oldMax = v.maxBalance;
+          }
+        });
+        var newMax = Math.max(rounded, oldMax);
+        window.FB.setDoc(ref, {
+          playerId: player.id,
+          playerName: player.name,
+          maxBalance: newMax,
+          updatedAt: new Date().toISOString(),
+        }).catch(function(err) {
+          console.warn('[Firebase] setDoc error:', err);
+        });
+      }).catch(function(err) {
+        console.warn('[Firebase] read error:', err);
+      });
+    } catch(e) {
+      console.warn('[Firebase] send error:', e);
+    }
   }
 
-  // ---------- ЗАГРУЗКА ЛИДЕРБОРДА ----------
+  // ---------- FIRESTORE: ЗАГРУЗКА ЛИДЕРБОРДА ----------
   function loadLeaderboard() {
     var listEl = document.getElementById('leaderboardList');
     listEl.innerHTML = '<div class="leaderboard-status">Загрузка...</div>';
 
-    fetch(LEADERBOARD_URL, { method: 'GET' })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (!data || !data.ok || !Array.isArray(data.leaders)) {
-          listEl.innerHTML = '<div class="leaderboard-status">Ошибка загрузки</div>';
-          return;
-        }
-        var leaders = data.leaders.slice(0, 10);
-        if (leaders.length === 0) {
+    if (!window.FB || !window.FB.ready) {
+      listEl.innerHTML = '<div class="leaderboard-status">⏱ Firebase ещё загружается...<br>Подожди пару секунд и открой снова.</div>';
+      return;
+    }
+
+    window.FB.getDocs(window.FB.collection(window.FB.db, 'scores'))
+      .then(function(snap) {
+        var list = [];
+        snap.forEach(function(d) {
+          var v = d.data() || {};
+          list.push({
+            playerId: v.playerId || d.id,
+            playerName: v.playerName || 'Игрок',
+            maxBalance: Number(v.maxBalance) || 0,
+          });
+        });
+        list.sort(function(a, b) { return b.maxBalance - a.maxBalance; });
+        list = list.slice(0, 10);
+
+        if (list.length === 0) {
           listEl.innerHTML = '<div class="leaderboard-status">Пока никто не играл 🎰</div>';
           return;
         }
+
         var html = '';
-        leaders.forEach(function(row, i) {
+        list.forEach(function(row, i) {
           var rank = i + 1;
           var medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank;
           var cls = 'leaderboard-row';
@@ -844,13 +930,92 @@ document.addEventListener('DOMContentLoaded', function() {
         listEl.innerHTML = html;
       })
       .catch(function(err) {
-        listEl.innerHTML = '<div class="leaderboard-status">Ошибка сети<br>' + (err.message || '') + '</div>';
+        listEl.innerHTML = '<div class="leaderboard-status">❌ Ошибка Firestore<br><br><code style="font-size:10px;color:#f88">'
+          + (err.message || 'unknown').replace(/</g, '&lt;') + '</code></div>';
       });
   }
+
+  // ============================================================
+  //  👑 ОБЩИЙ ДЖЕКПОТ — FIRESTORE
+  // ============================================================
+  var jackpotLoaded = false;
+
+  // Читает актуальный размер банка
+  function loadJackpot() {
+    if (!window.FB || !window.FB.ready) return;
+    var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
+    window.FB.getDocs(window.FB.collection(window.FB.db, 'jackpot')).then(function(snap) {
+      var found = null;
+      snap.forEach(function(d) {
+        if (d.id === 'main') found = d.data();
+      });
+      if (found && typeof found.amount === 'number') {
+        state.jackpot = found.amount;
+      } else {
+        // Первый запуск — создаём документ
+        window.FB.setDoc(ref, {
+          amount: JACKPOT_START,
+          updatedAt: new Date().toISOString(),
+        }).catch(function(){});
+        state.jackpot = JACKPOT_START;
+      }
+      jackpotLoaded = true;
+      updateJackpotUI();
+    }).catch(function(err) {
+      console.warn('[Jackpot] load error:', err);
+    });
+  }
+
+  // Прибавляет вклад в банк атомарно (транзакция)
+  function contributeToJackpot(amount) {
+    if (!window.FB || !window.FB.ready) return;
+    if (!jackpotLoaded) return;
+    var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
+    window.FB.runTransaction(window.FB.db, function(tx) {
+      return tx.get(ref).then(function(docSnap) {
+        var current = JACKPOT_START;
+        if (docSnap.exists()) {
+          var d = docSnap.data();
+          if (d && typeof d.amount === 'number') current = d.amount;
+        }
+        var next = Math.min(current + amount, JACKPOT_CAP);
+        if (!docSnap.exists()) {
+          tx.set(ref, { amount: next, updatedAt: new Date().toISOString() });
+        } else {
+          tx.update(ref, { amount: next, updatedAt: new Date().toISOString() });
+        }
+        state.jackpot = next;
+        updateJackpotUI();
+      });
+    }).catch(function(err) {
+      console.warn('[Jackpot] contribute error:', err);
+    });
+  }
+
+  // Обнуляет банк после выигрыша
+  function resetJackpot() {
+    if (!window.FB || !window.FB.ready) return;
+    var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
+    window.FB.setDoc(ref, {
+      amount: JACKPOT_START,
+      updatedAt: new Date().toISOString(),
+    }).then(function() {
+      state.jackpot = JACKPOT_START;
+      updateJackpotUI();
+    }).catch(function(err) {
+      console.warn('[Jackpot] reset error:', err);
+    });
+  }
+
+  // Автообновление банка раз в 10 секунд
+  setInterval(function() {
+    if (!state.spinning) loadJackpot();
+  }, 10000);
 
   function openLeaderboard() {
     document.getElementById('leaderboardOverlay').classList.add('show');
     loadLeaderboard();
+    loadJackpot();
   }
   function closeLeaderboard() {
     document.getElementById('leaderboardOverlay').classList.remove('show');
@@ -888,7 +1053,6 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem(CONFIG.storageKey, JSON.stringify({
           balance: state.balance,
           bet: state.bet,
-          jackpot: state.jackpot,
           soundOn: state.soundOn,
         }));
       }
@@ -902,7 +1066,6 @@ document.addEventListener('DOMContentLoaded', function() {
       var d = JSON.parse(raw);
       if (typeof d.balance === 'number') state.balance = d.balance;
       if (typeof d.bet === 'number') state.bet = d.bet;
-      if (typeof d.jackpot === 'number') state.jackpot = d.jackpot;
       if (typeof d.soundOn === 'boolean') state.soundOn = d.soundOn;
     } catch(e) {}
   }
@@ -910,7 +1073,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function $(id) { return document.getElementById(id); }
   var el = {
     balance: $('balance'), bet: $('bet'), message: $('message'),
-    spinBtn: $('spinBtn'), resetBtn: $('resetBtn'),
+    spinBtn: $('spinBtn'),
     addBtn: $('addBtn'), betHalf: $('betHalf'), betX2: $('betX2'),
     betX3: $('betX3'), betX5: $('betX5'),
     betAdd100: $('betAdd100'), betAdd1000: $('betAdd1000'),
@@ -1194,14 +1357,14 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function setMessage(text, cls, color) {
-    el.message.classList.remove('win', 'jackpot');
+    el.message.classList.remove('win', 'jackpot', 'limit');
     el.message.textContent = text;
     el.message.style.color = color || '#d4af37';
     if (cls) el.message.classList.add(cls);
   }
 
   function clearMessage() {
-    el.message.classList.remove('win', 'jackpot');
+    el.message.classList.remove('win', 'jackpot', 'limit');
     el.message.textContent = 'Нажми КРУТИТЬ!';
     el.message.style.color = '#d4af37';
   }
@@ -1218,6 +1381,9 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateJackpotUI() {
     if (!el.jackpotValue) return;
     el.jackpotValue.textContent = fmt(state.jackpot);
+    el.jackpotValue.classList.remove('grow');
+    void el.jackpotValue.offsetWidth;
+    el.jackpotValue.classList.add('grow');
   }
 
   function startGoldRain(duration) {
@@ -1241,6 +1407,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function showWinVisual(wins, totalWin, isJackpot) {
+    if (state.balance >= HARD_CAP_MIN && !isJackpot) {
+      totalWin = 0;
+    }
+
     clearAllTimers();
     document.querySelectorAll('.cell.hit').forEach(function(c){ c.classList.remove('hit'); });
     clearLightning();
@@ -1255,8 +1425,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (isJackpot) {
       setMessage('👑 ДЖЕКПОТ! ' + winText, 'jackpot', '#00ffff');
-    } else {
+    } else if (totalWin > 0) {
       setMessage(winText, 'win', '#ffd700');
+    } else {
+      setMessage('Потолок', 'limit', '#ff8844');
     }
 
     if (isJackpot) {
@@ -1270,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', function() {
       Sound.bigWin();
       vibrate([100, 50, 100, 50, 200]);
       shakeTimer = setTimeout(function(){ el.machine.classList.remove('shake'); }, 900);
-    } else {
+    } else if (totalWin > 0) {
       Sound.win();
       vibrate([60, 30, 60]);
     }
@@ -1352,8 +1524,13 @@ document.addEventListener('DOMContentLoaded', function() {
       state.spinning = true;
       state.balance -= state.bet;
       state.outOfFunds = false;
-      state.jackpot += state.bet * CONFIG.jackpot.contributionPct;
+
+      // Вклад в общий джекпот
+      var contribution = state.bet * JACKPOT_CONTRIBUTION;
+      state.jackpot += contribution;
       updateJackpotUI();
+      contributeToJackpot(contribution);
+
       updateUI();
       saveStore();
 
@@ -1374,33 +1551,59 @@ document.addEventListener('DOMContentLoaded', function() {
         var grandPath = checkGrandJackpot(grid);
 
         if (grandPath) {
+          // Выигрыш общего джекпота
           var jackpotWin = state.jackpot;
-          state.jackpot = CONFIG.jackpot.start;
-          updateJackpotUI();
-          state.balance += jackpotWin;
+          resetJackpot();
           state.spinning = false;
-          var wins = [{
-            symbol: DIAMOND, length: 5, path: grandPath,
-            payout: jackpotWin, isJackpot: true,
-          }];
-          showWinVisual(wins, jackpotWin, true);
+
+          if (state.balance < HARD_CAP_MIN) {
+            var allowedJackpot = Math.min(jackpotWin, HARD_CAP_MAX - state.balance);
+            state.balance += allowedJackpot;
+            var wins = [{
+              symbol: DIAMOND, length: 5, path: grandPath,
+              payout: allowedJackpot, isJackpot: true,
+            }];
+            showWinVisual(wins, allowedJackpot, true);
+          } else {
+            var wins = [{
+              symbol: DIAMOND, length: 5, path: grandPath,
+              payout: 0, isJackpot: true,
+            }];
+            showWinVisual(wins, 0, true);
+          }
           pushHistory('jackpot');
         } else {
           var allWins = findAllWinsLR(grid);
           var wins2 = dedupeWins(allWins);
           var totalWin = 0;
           wins2.forEach(function(w){ totalWin += state.bet * w.payout; });
+          totalWin = Math.floor(totalWin);
           state.spinning = false;
+
           if (totalWin > 0) {
-            totalWin = Math.floor(totalWin);
-            state.balance += totalWin;
-            var anyBig = wins2.some(function(w){ return w.length >= 4; });
-            showWinVisual(wins2, totalWin, false);
-            pushHistory(anyBig ? 'big' : 'win');
+            if (state.balance >= HARD_CAP_MIN) {
+              totalWin = 0;
+            } else if (state.balance + totalWin > HARD_CAP_MAX) {
+              totalWin = HARD_CAP_MAX - state.balance;
+            }
+
+            if (totalWin > 0) {
+              state.balance += totalWin;
+              var anyBig = wins2.some(function(w){ return w.length >= 4; });
+              showWinVisual(wins2, totalWin, false);
+              pushHistory(anyBig ? 'big' : 'win');
+            } else {
+              showWinVisual(wins2, 0, false);
+              pushHistory('win');
+            }
           } else {
             showMiss();
             pushHistory('miss');
           }
+        }
+
+        if (state.balance < FLOOR) {
+          state.balance = FLOOR;
         }
 
         if (state.bet > state.balance) {
@@ -1424,25 +1627,6 @@ document.addEventListener('DOMContentLoaded', function() {
       clearMessage();
       updateUI();
     }
-  }
-
-  function reset() {
-    try {
-      if (state.spinning) return;
-      resetAllEffects();
-      state.balance = CONFIG.bet.start;
-      state.bet = CONFIG.bet.min;
-      state.outOfFunds = false;
-      state.history = [];
-      for (var r = 0; r < REELS_COUNT; r++) {
-        for (var row = 0; row < ROWS; row++) {
-          setCell(r, row, rndEmoji());
-        }
-      }
-      renderHistory();
-      updateUI();
-      saveStore();
-    } catch(e) { showError('reset(): ' + e.message); }
   }
 
   function setBet(newBet) {
@@ -1537,11 +1721,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     vibrate(30);
     Sound.win();
-    state.balance += CONFIG.bet.add;
+    var toAdd = CONFIG.bet.add;
+    if (state.balance + toAdd > HARD_CAP_MAX) {
+      toAdd = Math.max(0, HARD_CAP_MAX - state.balance);
+    }
+    state.balance += toAdd;
     state.outOfFunds = false;
     closeCaptcha();
     clearMessage();
-    setMessage('+' + fmt(CONFIG.bet.add) + ' зачислено!', 'win', '#3fa04a');
+    if (toAdd > 0) {
+      setMessage('+' + fmt(toAdd) + ' зачислено!', 'win', '#3fa04a');
+    } else {
+      setMessage('Потолок достигнут', 'limit', '#ff8844');
+    }
     messageTimer = setTimeout(function() {
       clearMessage();
       messageTimer = null;
@@ -1567,7 +1759,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   try {
     el.spinBtn.addEventListener('click', spin);
-    el.resetBtn.addEventListener('click', reset);
     el.betHalf.addEventListener('click', betHalf);
     el.betX2.addEventListener('click', betX2);
     el.betX3.addEventListener('click', betX3);
@@ -1607,8 +1798,8 @@ document.addEventListener('DOMContentLoaded', function() {
   updateJackpotUI();
   updateUI();
 
-  // Отправляем при старте текущий баланс
   setTimeout(sendScoreToLeaderboard, 2000);
+  setTimeout(loadJackpot, 1500);
 
   document.addEventListener('touchstart', function unlock() {
     try { ensureAudio(); } catch(e) {}
