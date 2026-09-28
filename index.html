@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0a">
@@ -808,6 +808,37 @@
   .cell.spinning { filter:blur(1.5px); animation:cellScroll .14s linear infinite; }
   @keyframes cellScroll { 0%{transform:translateY(-5px)} 50%{transform:translateY(1px)} 100%{transform:translateY(5px)} }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
+
+  /* Mobile layout: let short screens scroll and keep the reels inside the viewport. */
+  html { height:auto; min-height:100%; overflow-x:hidden; overflow-y:auto; }
+  body { height:auto; min-height:100vh; min-height:100dvh; overflow-x:hidden; overflow-y:visible; justify-content:flex-start; }
+  .feature-btn { min-height:40px; font-size:12px; }
+  .auto-btn { min-height:38px; }
+  .legal-note { font-size:11px; }
+  @media (max-width:420px) {
+    body { padding-left:6px; padding-right:6px; }
+    .machine { padding:8px; }
+    .reels { gap:3px; padding:6px; }
+    .reel { flex:1; width:auto; min-width:0; }
+    .cell { width:100%; height:clamp(46px,14vw,60px); font-size:clamp(28px,9vw,40px); }
+    .feature-tools { gap:4px; }
+    .feature-btn { padding:7px 2px; font-size:11px; }
+    .auto-tools { gap:4px; }
+    .auto-tools select { padding:7px 3px; font-size:11px; }
+    .auto-status { min-width:48px; font-size:10px; }
+    .title { font-size:16px; }
+    .paytable { font-size:11px; }
+  }
+  @media (max-height:760px) {
+    body { gap:4px; padding-top:max(4px,env(safe-area-inset-top)); }
+    .jackpot-bar { padding:5px 8px; }
+    .machine { padding:8px; }
+    .info, .bet-panel, .reels, .message { margin-bottom:5px; }
+    button.main { padding:10px; }
+    .history { margin-top:5px; }
+    .paytable { margin-top:5px; }
+  }
+
 </style>
 </head>
 <body>
