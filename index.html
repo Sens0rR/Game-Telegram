@@ -125,6 +125,7 @@
     transition: transform 0.3s;
   }
   .jackpot-value.grow { animation: jackpotGrow 0.4s ease-out; }
+  .jackpot-last-winner { position: relative; z-index: 1; color: #e6d9b0; font-size: 11px; text-align: center; }
   @keyframes jackpotGrow {
     0% { transform: scale(1); }
     50% { transform: scale(1.12); color: #ffd700; }
@@ -772,6 +773,41 @@
     .bet-op { font-size: 11px; padding: 5px 0; }
     .jackpot-value { font-size: 18px; }
   }
+
+  body { overflow-x: hidden; overflow-y: auto; justify-content: flex-start; }
+  .feature-tools { width:100%; max-width:480px; display:grid; grid-template-columns:repeat(3,1fr); gap:5px; }
+  .feature-btn, .auto-btn { border:1px solid #66552c; border-radius:8px; padding:8px 4px; color:#f1d77b; background:linear-gradient(180deg,#28233d,#171426); font-family:inherit; font-size:11px; font-weight:700; cursor:pointer; }
+  .auto-tools { width:100%; max-width:480px; display:flex; align-items:center; gap:6px; }
+  .auto-tools select { flex:1; min-width:0; padding:8px; border:1px solid #4a4468; border-radius:8px; background:#151326; color:#fff; font-family:inherit; font-size:12px; font-weight:600; }
+  .auto-btn.start { background:linear-gradient(180deg,#3fa04a,#1e6b2a); color:#fff; }
+  .auto-btn.stop { background:linear-gradient(180deg,#a33,#611); color:#fff; }
+  .auto-status { min-width:65px; text-align:center; color:#d4af37; font-size:11px; }
+  .feature-overlay { position:fixed; inset:0; z-index:500; display:none; align-items:center; justify-content:center; padding:16px; background:rgba(0,0,0,.82); }
+  .feature-overlay.show { display:flex; }
+  .feature-dialog { width:100%; max-width:420px; max-height:82vh; overflow:auto; padding:18px; border:1px solid #d4af37; border-radius:16px; background:linear-gradient(180deg,#1c1830,#0c0a1c); box-shadow:0 0 40px #000; }
+  .feature-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .feature-head h2 { margin:0; color:#ffd700; font-size:17px; }
+  .feature-close { border:0; background:transparent; color:#fff; font-size:24px; cursor:pointer; }
+  .feature-card,.feature-row { margin:7px 0; padding:10px; border:1px solid rgba(212,175,55,.28); border-radius:9px; background:rgba(255,255,255,.04); color:#eee; font-size:13px; }
+  .daily-calendar { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; margin:8px 0; }
+  .daily-day { padding:7px 2px; border:1px solid #4a4468; border-radius:7px; color:#bbb; font-size:9px; line-height:1.35; text-align:center; }
+  .daily-day.done { border-color:#3fa04a; color:#a8e7ae; background:rgba(63,160,74,.12); }
+  .daily-day.next { border-color:#d4af37; color:#ffe483; background:rgba(212,175,55,.12); }
+  .feature-card strong,.feature-row strong { color:#ffd700; }
+  .feature-row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .feature-row button,.theme-choice { padding:7px 9px; border:1px solid #6b5520; border-radius:7px; background:#28233d; color:#f1d77b; cursor:pointer; }
+  .feature-muted { color:#aaa; font-size:11px; }
+  .theme-choice.active { background:#7a5a1f; color:#fff; }
+  .legal-note { width:100%; max-width:480px; margin:5px 0 14px; padding:8px; color:#aaa; font-size:10px; line-height:1.4; text-align:center; }
+  body[data-theme="emerald"] { background:radial-gradient(circle at 50% 0%,#10352b 0%,#07120f 70%); }
+  body[data-theme="ocean"] { background:radial-gradient(circle at 50% 0%,#102e4c 0%,#070d18 70%); }
+  body[data-theme="sunset"] { background:radial-gradient(circle at 50% 0%,#492136 0%,#170b15 70%); }
+  body[data-theme="emerald"] .machine, body[data-theme="emerald"] .jackpot-bar { border-color:#4d9e75; }
+  body[data-theme="ocean"] .machine, body[data-theme="ocean"] .jackpot-bar { border-color:#528db7; }
+  body[data-theme="sunset"] .machine, body[data-theme="sunset"] .jackpot-bar { border-color:#bf6d52; }
+  .cell.spinning { filter:blur(1.5px); animation:cellScroll .14s linear infinite; }
+  @keyframes cellScroll { 0%{transform:translateY(-5px)} 50%{transform:translateY(1px)} 100%{transform:translateY(5px)} }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
 </style>
 </head>
 <body>
@@ -941,8 +977,25 @@
 <div class="jackpot-bar">
   <span class="jackpot-label">👑 ОБЩИЙ ДЖЕКПОТ</span>
   <span class="jackpot-value" id="jackpotValue">1 000 000 ₽</span>
+  <span class="jackpot-last-winner" id="jackpotLastWinner">Последний джекпот: пока не было</span>
 </div>
 
+
+<div class="feature-tools" aria-label="Игровые функции">
+  <button class="feature-btn" type="button" data-feature="daily">🎁 Бонус</button>
+  <button class="feature-btn" type="button" data-feature="achievements">🏆 Достижения</button>
+  <button class="feature-btn" type="button" data-feature="stats">📊 Статистика</button>
+  <button class="feature-btn" type="button" data-feature="wins">💰 Выигрыши</button>
+  <button class="feature-btn" type="button" data-feature="jackpots">👑 Джекпоты</button>
+  <button class="feature-btn" type="button" data-feature="themes">🎨 Оформление</button>
+</div>
+<div class="auto-tools" aria-label="Автоматическая игра">
+  <label for="autoCount" class="feature-muted">Автоспин:</label>
+  <select id="autoCount"><option value="10">10 спинов</option><option value="25">25 спинов</option><option value="50">50 спинов</option><option value="100">100 спинов</option></select>
+  <button class="auto-btn start" id="autoStart" type="button">Старт</button>
+  <button class="auto-btn stop" id="autoStop" type="button" title="Остановить после текущего вращения" disabled>Стоп</button>
+  <span class="auto-status" id="autoStatus" aria-live="polite">Готово</span>
+</div>
 <div class="machine" id="machine">
   <div class="win-popup" id="winPopup">+0 ₽</div>
 
@@ -1010,6 +1063,11 @@
     🍉×8 · 🍇×5 · 🍊×3 · 🍋×2 · 🍒×1.5 · 🍎×1<br>
     💎 + 🍉🍉🍉🍉 = GRAND JACKPOT
   </div>
+
+</div>
+<div class="legal-note">Демо-игра для развлечения. Баллы виртуальные, не являются деньгами и не обмениваются на призы. При балансе от 10 000 000 баллов вероятность зачёта обычного выигрыша постепенно снижается и достигает 98% к 45 000 000; джекпот рассчитывается отдельно. Ежедневные бонусы, достижения и статистика хранятся в браузере этого устройства. Игра не является азартной услугой; разработчик не несёт ответственности за решения, принятые на основе результатов игры.</div>
+<div class="feature-overlay" id="featureOverlay" role="dialog" aria-modal="true" aria-labelledby="featureTitle">
+  <div class="feature-dialog"><div class="feature-head"><h2 id="featureTitle">Игра</h2><button class="feature-close" id="featureClose" type="button" aria-label="Закрыть">×</button></div><div id="featureContent"></div></div>
 </div>
 
 <script>
@@ -1070,6 +1128,10 @@ document.addEventListener('DOMContentLoaded', function() {
     spinning: false, outOfFunds: false, history: [], soundOn: true,
   };
 
+
+  var meta = { daily: { date: '', streak: 0 }, stats: { spins: 0, wins: 0, bestWin: 0, maxCombo: 0, bestBalance: 0, rewardedLevel: 1 }, wins: [], jackpots: [], claimed: [], theme: 'classic', soundTheme: 'classic' };
+  var autoSpin = { active: false, remaining: 0, timer: null };
+  var activeFeature = 'daily';
   var lastSentBalance = -1;
   var rig = { forceNext: null, globalChance: null };
 
@@ -1177,14 +1239,12 @@ document.addEventListener('DOMContentLoaded', function() {
       lastSentBalance = rounded;
 
       var ref = window.FB.doc(window.FB.db, 'scores', player.id);
-      window.FB.getDocs(window.FB.collection(window.FB.db, 'scores')).then(function(snap) {
+      window.FB.getDoc(ref).then(function(snap) {
         var oldMax = 0;
-        snap.forEach(function(d) {
-          if (d.id === player.id) {
-            var v = d.data();
-            if (v && typeof v.maxBalance === 'number') oldMax = v.maxBalance;
-          }
-        });
+        if (snap && snap.exists && snap.exists()) {
+          var v = snap.data();
+          if (v && typeof v.maxBalance === 'number') oldMax = v.maxBalance;
+        }
         var newMax = Math.max(rounded, oldMax);
         window.FB.setDoc(ref, {
           playerId: player.id, playerName: player.name,
@@ -1252,9 +1312,8 @@ document.addEventListener('DOMContentLoaded', function() {
   function loadJackpot() {
     if (!window.FB || !window.FB.ready) return;
     var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
-    window.FB.getDocs(window.FB.collection(window.FB.db, 'jackpot')).then(function(snap) {
-      var found = null;
-      snap.forEach(function(d) { if (d.id === 'main') found = d.data(); });
+    window.FB.getDoc(ref).then(function(snap) {
+      var found = snap && snap.exists && snap.exists() ? snap.data() : null;
       if (found && typeof found.amount === 'number') state.jackpot = found.amount;
       else {
         window.FB.setDoc(ref, { amount: JACKPOT_START, updatedAt: new Date().toISOString() }).catch(function(){});
@@ -1286,6 +1345,150 @@ document.addEventListener('DOMContentLoaded', function() {
     }).catch(function(err) {});
   }
 
+  function loadLastJackpotWinner() {
+    if (!window.FB || !window.FB.ready) return;
+    var ref = window.FB.doc(window.FB.db, 'jackpot', 'lastWinner');
+    window.FB.getDoc(ref).then(function(snap) {
+      var el = document.getElementById('jackpotLastWinner');
+      if (!el) return;
+      if (!snap || !snap.exists || !snap.exists()) {
+        el.textContent = 'Последний джекпот: пока не было';
+        return;
+      }
+      var data = snap.data() || {};
+      var name = String(data.playerName || 'Игрок').slice(0, 40);
+      el.textContent = 'Последний джекпот: ' + name + ' — ' + fmt(Number(data.amount) || 0);
+    }).catch(function() {});
+  }
+
+
+  function escapeFeatureText(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+
+  function recordLocalWin(amount, combo, jackpot) {
+    amount = Math.max(0, Math.floor(Number(amount) || 0));
+    if (!amount) return;
+    meta.stats.wins += 1;
+    meta.stats.bestWin = Math.max(meta.stats.bestWin, amount);
+    meta.stats.maxCombo = Math.max(meta.stats.maxCombo, Number(combo) || 0);
+    meta.stats.bestBalance = Math.max(meta.stats.bestBalance, state.balance);
+    var item = { amount: amount, combo: combo || 0, time: new Date().toLocaleString('ru-RU'), playerName: player.name };
+    meta.wins.unshift(item);
+    meta.wins = meta.wins.slice(0, 20);
+    if (jackpot) {
+      meta.jackpots.unshift(item);
+      meta.jackpots = meta.jackpots.slice(0, 10);
+    }
+    saveStore();
+  }
+
+  function loadJackpotHistory() {
+    if (!window.FB || !window.FB.ready) return;
+    var ref = window.FB.doc(window.FB.db, 'jackpot', 'history');
+    window.FB.getDoc(ref).then(function(snap) {
+      if (!snap || !snap.exists || !snap.exists()) return;
+      var data = snap.data() || {};
+      if (Array.isArray(data.items)) {
+        meta.jackpots = data.items.slice(0, 10);
+        saveStore();
+        if (activeFeature === 'jackpots' && el.featureOverlay.classList.contains('show')) showFeature('jackpots');
+      }
+    }).catch(function() {});
+  }
+
+  function recordJackpotWinner(amount) {
+    if (!window.FB || !window.FB.ready) return;
+    var ref = window.FB.doc(window.FB.db, 'jackpot', 'lastWinner');
+    window.FB.setDoc(ref, {
+      playerId: player.id,
+      playerName: player.name,
+      amount: Math.floor(Number(amount) || 0),
+      wonAt: new Date().toISOString(),
+    }).then(loadLastJackpotWinner).catch(function(err) {
+      console.warn('[FB] jackpot winner save error:', err);
+    });
+    var historyRef = window.FB.doc(window.FB.db, 'jackpot', 'history');
+    window.FB.runTransaction(window.FB.db, function(tx) {
+      return tx.get(historyRef).then(function(snap) {
+        var data = snap.exists() ? (snap.data() || {}) : {};
+        var items = Array.isArray(data.items) ? data.items.slice() : [];
+        items.unshift({ playerName: player.name, playerId: player.id, amount: Math.floor(Number(amount) || 0), wonAt: new Date().toISOString(), time: new Date().toLocaleString('ru-RU'), combo: 5 });
+        tx.set(historyRef, { items: items.slice(0, 10), updatedAt: new Date().toISOString() });
+      });
+    }).then(loadJackpotHistory).catch(function(err) { console.warn('[FB] jackpot history save error:', err); });
+  }
+
+  function localDateKey(date) {
+    return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  }
+  function yesterdayKey() { var d = new Date(); d.setDate(d.getDate() - 1); return localDateKey(d); }
+  function formatFeatureMoney(value) { return Math.round(Number(value) || 0).toLocaleString('ru-RU') + ' ₽'; }
+  function dailyReward() { var today = localDateKey(new Date()); var valid = meta.daily.date === today || meta.daily.date === yesterdayKey(); var streak = valid ? (meta.daily.streak || 0) : 0; return 300 * (Math.min(Math.max(streak, 0), 6) + 1); }
+  function showFeature(name) {
+    activeFeature = name;
+    var titles = { daily: 'Ежедневный бонус', achievements: 'Достижения и уровни', stats: 'Статистика игрока', wins: 'Последние выигрыши', jackpots: 'История джекпотов', themes: 'Оформление и звук' };
+    var title = document.getElementById('featureTitle');
+    title.textContent = titles[name] || 'Игра';
+    var content = el.featureContent;
+    var claimedToday = meta.daily.date === localDateKey(new Date());
+    if (name === 'daily') {
+      var today = localDateKey(new Date());
+      var streak = (meta.daily.date === today || meta.daily.date === yesterdayKey()) ? (meta.daily.streak || 0) : 0;
+      var calendar = '';
+      for (var day = 1; day <= 7; day++) {
+        var isDone = day <= streak;
+        var isNext = !claimedToday && day === streak + 1;
+        calendar += '<div class="daily-day ' + (isDone ? 'done' : isNext ? 'next' : '') + '">День ' + day + '<br>' + (isDone ? '✓' : isNext ? 'Сегодня' : '') + '<br>' + formatFeatureMoney(day * 300) + '</div>';
+      }
+      content.innerHTML = '<div class="daily-calendar">' + calendar + '</div><div class="feature-card">Серия входов: <strong>' + streak + ' дн.</strong><br>Награда сегодня: <strong>' + formatFeatureMoney(dailyReward()) + '</strong><div class="feature-muted">Забирай бонус раз в день; после 7-го дня награда повторяется.</div></div><button class="feature-row" id="claimDaily" type="button" ' + (claimedToday ? 'disabled' : '') + '>' + (claimedToday ? 'Бонус уже получен сегодня' : 'Забрать бонус') + '</button>';
+    } else if (name === 'stats') {
+      content.innerHTML = '<div class="feature-card">Вращений: <strong>' + meta.stats.spins + '</strong><br>Выигрышных вращений: <strong>' + meta.stats.wins + '</strong><br>Крупнейший выигрыш: <strong>' + formatFeatureMoney(meta.stats.bestWin) + '</strong><br>Максимальная комбинация: <strong>' + meta.stats.maxCombo + ' символов</strong><br>Лучший баланс: <strong>' + formatFeatureMoney(meta.stats.bestBalance) + '</strong></div>';
+    } else if (name === 'wins' || name === 'jackpots') {
+      var rows = name === 'wins' ? meta.wins : meta.jackpots;
+      content.innerHTML = rows.length ? rows.map(function(row) { return '<div class="feature-row"><span>' + (name === 'jackpots' && row.playerName ? '<strong>' + escapeFeatureText(row.playerName) + '</strong><br>' : '') + escapeFeatureText(row.time || '') + (row.combo ? '<br><span class="feature-muted">Комбинация: ' + Number(row.combo) + ' символов</span>' : '') + '</span><strong>' + formatFeatureMoney(row.amount) + '</strong></div>'; }).join('') : '<div class="feature-card">Пока записей нет. История хранится на этом устройстве.</div>';
+    } else if (name === 'achievements') {
+      var defs = [
+        { id: 'spins10', title: 'Первый азарт', desc: '10 вращений', ok: meta.stats.spins >= 10, reward: 250 },
+        { id: 'spins100', title: 'Постоянный игрок', desc: '100 вращений', ok: meta.stats.spins >= 100, reward: 1000 },
+        { id: 'wins10', title: 'Полоса удачи', desc: '10 выигрышных вращений', ok: meta.stats.wins >= 10, reward: 500 },
+        { id: 'combo5', title: 'Пять в ряд', desc: 'Комбинация из 5 символов', ok: meta.stats.maxCombo >= 5, reward: 1500 },
+        { id: 'bigwin', title: 'Крупный выигрыш', desc: 'Выигрыш от 10 000 баллов', ok: meta.stats.bestWin >= 10000, reward: 1000 }
+      ];
+      var level = 1 + Math.floor(meta.stats.spins / 25);
+      content.innerHTML = '<div class="feature-card">Уровень <strong>' + level + '</strong> · до следующего уровня: <strong>' + (25 - (meta.stats.spins % 25)) + '</strong> вращений</div>' + defs.map(function(a) { var done = meta.claimed.indexOf(a.id) !== -1; return '<div class="feature-row"><span><strong>' + (a.ok ? '🏆 ' : '🔒 ') + a.title + '</strong><br><span class="feature-muted">' + a.desc + ' · награда ' + formatFeatureMoney(a.reward) + '</span></span>' + (done ? '<span>Получено</span>' : a.ok ? '<button type="button" data-achievement="' + a.id + '" data-reward="' + a.reward + '">Забрать</button>' : '<span>В процессе</span>') + '</div>'; }).join('');
+    } else if (name === 'themes') {
+      content.innerHTML = '<div class="feature-card">Тема барабанов и фона</div><div class="feature-row">' + [['classic','Классика'],['emerald','Изумруд'],['ocean','Океан'],['sunset','Закат']].map(function(t) { return '<button type="button" class="theme-choice ' + (meta.theme === t[0] ? 'active' : '') + '" data-theme="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div class="feature-card">Звук</div><div class="feature-row"><label for="soundTheme">Стиль звука</label><select id="soundTheme"><option value="classic">Классический</option><option value="soft">Мягкий</option><option value="retro">Ретро</option><option value="off">Выключен</option></select></div>';
+      var soundSelect = document.getElementById('soundTheme');
+      soundSelect.value = meta.soundTheme || 'classic';
+    }
+    el.featureOverlay.classList.add('show');
+  }
+  function applyTheme() { document.body.setAttribute('data-theme', meta.theme || 'classic'); }
+  function updateAutoUI() {
+    el.autoStart.disabled = autoSpin.active;
+    el.autoStop.disabled = !autoSpin.active;
+    el.autoStatus.textContent = autoSpin.active ? 'Осталось ' + autoSpin.remaining : 'Готово';
+  }
+  function stopAutoSpin() {
+    autoSpin.active = false;
+    if (autoSpin.timer) clearTimeout(autoSpin.timer);
+    autoSpin.timer = null;
+    updateAutoUI();
+  }
+  function continueAutoSpin() {
+    if (!autoSpin.active) return;
+    if (autoSpin.remaining <= 0 || state.balance < state.bet) { stopAutoSpin(); return; }
+    autoSpin.timer = setTimeout(spin, 650);
+  }
+  function startAutoSpin() {
+    var count = Math.max(1, Math.min(100, parseInt(el.autoCount.value, 10) || 10));
+    if (state.spinning) { showToast('Дождись завершения текущего вращения'); return; }
+    if (state.balance < state.bet) { showToast('Недостаточно баллов для автоспина'); return; }
+    autoSpin.active = true;
+    autoSpin.remaining = count;
+    updateAutoUI();
+    spin();
+  }
+
   function resetJackpot() {
     if (!window.FB || !window.FB.ready) return;
     var ref = window.FB.doc(window.FB.db, 'jackpot', 'main');
@@ -1298,7 +1501,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   setInterval(function() {
-    if (!state.spinning && !document.hidden) loadJackpot();
+    if (!state.spinning && !document.hidden) { loadJackpot(); loadLastJackpotWinner(); }
   }, 10000);
 
   function openLeaderboard() {
@@ -1320,7 +1523,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function saveStore() {
     try { if (window.localStorage) localStorage.setItem(CONFIG.storageKey, JSON.stringify({
-      balance: state.balance, bet: state.bet, soundOn: state.soundOn,
+      balance: state.balance, bet: state.bet, soundOn: state.soundOn, meta: meta,
     })); } catch(e) {}
   }
   function loadStore() {
@@ -1331,7 +1534,16 @@ document.addEventListener('DOMContentLoaded', function() {
       var d = JSON.parse(raw);
       if (typeof d.balance === 'number') state.balance = d.balance;
       if (typeof d.bet === 'number') state.bet = d.bet;
+
       if (typeof d.soundOn === 'boolean') state.soundOn = d.soundOn;
+      if (d.meta && typeof d.meta === 'object') {
+        meta = Object.assign(meta, d.meta);
+        meta.daily = Object.assign({ date: '', streak: 0 }, d.meta.daily || {});
+        meta.stats = Object.assign({ spins: 0, wins: 0, bestWin: 0, maxCombo: 0, bestBalance: 0, rewardedLevel: 1 }, d.meta.stats || {});
+        meta.wins = Array.isArray(d.meta.wins) ? d.meta.wins.slice(0, 20) : [];
+        meta.jackpots = Array.isArray(d.meta.jackpots) ? d.meta.jackpots.slice(0, 10) : [];
+        meta.claimed = Array.isArray(d.meta.claimed) ? d.meta.claimed : [];
+      }
     } catch(e) {}
   }
 
@@ -1344,7 +1556,10 @@ document.addEventListener('DOMContentLoaded', function() {
     winPopup: $('winPopup'), machine: $('machine'),
     history: $('history'), soundToggle: $('soundToggle'),
     reelsBox: $('reels'), lightningSvg: $('lightningSvg'),
+
     jackpotValue: $('jackpotValue'), goldRain: $('goldRain'),
+      autoCount: $('autoCount'), autoStart: $('autoStart'), autoStop: $('autoStop'), autoStatus: $('autoStatus'),
+      featureOverlay: $('featureOverlay'), featureContent: $('featureContent'),
     jackpotFlash: $('jackpotFlash'),
     captchaOverlay: $('captchaOverlay'), captchaQuestion: $('captchaQuestion'),
     captchaInput: $('captchaInput'), captchaError: $('captchaError'),
@@ -1377,7 +1592,7 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       var osc = c.createOscillator();
       var g = c.createGain();
-      osc.type = type || 'square';
+      osc.type = meta.soundTheme === 'soft' ? 'sine' : (meta.soundTheme === 'retro' ? 'square' : (type || 'square'));
       osc.frequency.value = freq;
       g.gain.setValueAtTime(vol || 0.15, c.currentTime);
       g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + (dur || 0.08));
@@ -1781,7 +1996,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
       resetAllEffects();
+
       state.spinning = true;
+      if (autoSpin.active) autoSpin.remaining -= 1;
+      meta.stats.spins += 1;
       state.balance -= state.bet;
       state.outOfFunds = false;
       var contribution = state.bet * JACKPOT_CONTRIBUTION;
@@ -1796,10 +2014,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
       var rigResult = applyRigToSyms();
       var forceReels = rigResult.forceReels;
+
       var promises = [];
+      var finalReels = [];
+      for (var reel = 0; reel < REELS_COUNT; reel++) {
+        finalReels[reel] = [rndEmoji(), rndEmoji(), rndEmoji()];
+        if (forceReels && forceReels[reel]) finalReels[reel] = forceReels[reel].slice();
+      }
+      var plannedGrid = finalReels.map(function(column) { return column.slice(); });
+      var plannedJackpot = checkGrandJackpot(plannedGrid);
+      var plannedWins = dedupeWins(findAllWinsLR(plannedGrid));
+      var plannedTotal = 0;
+      plannedWins.forEach(function(w) { plannedTotal += state.bet * w.payout; });
+      plannedTotal = Math.floor(plannedTotal);
+      var forcedLoss = rigResult.result === 'lose' || rig.forceNext === 'lose';
+      var suppressChance = 0;
+      if (state.balance >= SOFT_CAP_START) {
+        var progress = Math.min(1, (state.balance - SOFT_CAP_START) / (SOFT_CAP_END - SOFT_CAP_START));
+        suppressChance = progress * 0.98;
+      }
+      var suppressed = forcedLoss || (!plannedJackpot && plannedTotal > 0 && Math.random() < suppressChance && rig.forceNext !== 'win');
+      if (suppressed) {
+        var attempts = 0;
+        do {
+          finalReels = [];
+          for (var candidateReel = 0; candidateReel < REELS_COUNT; candidateReel++) {
+            finalReels[candidateReel] = [rndEmoji(), rndEmoji(), rndEmoji()];
+          }
+          plannedGrid = finalReels.map(function(column) { return column.slice(); });
+          attempts++;
+        } while ((checkGrandJackpot(plannedGrid) || findAllWinsLR(plannedGrid).length > 0) && attempts < 1000);
+      }
       for (var i = 0; i < REELS_COUNT; i++) {
         (function(idx) {
-          promises.push(animateReel(idx, CONFIG.spinDuration + idx * CONFIG.reelStagger, forceReels ? forceReels[idx] : null));
+          promises.push(animateReel(idx, CONFIG.spinDuration + idx * CONFIG.reelStagger, finalReels[idx]));
         })(i);
       }
       Promise.all(promises).then(function() {
@@ -1809,9 +2057,11 @@ document.addEventListener('DOMContentLoaded', function() {
         rig.forceNext = null;
         if (grandPath && forced !== 'lose' && rigResult.result !== 'lose') {
           var jackpotWin = state.jackpot;
+          recordJackpotWinner(jackpotWin);
           resetJackpot();
           state.spinning = false;
           state.balance += jackpotWin;
+          recordLocalWin(jackpotWin, 5, true);
           var wins = [{ symbol: DIAMOND, length: 5, path: grandPath, payout: jackpotWin, isJackpot: true }];
           showWinVisual(wins, jackpotWin, true);
           pushHistory('jackpot');
@@ -1823,52 +2073,17 @@ document.addEventListener('DOMContentLoaded', function() {
           totalWin = Math.floor(totalWin);
           state.spinning = false;
 
-          // Форс-проигрыш от админа — всегда 0
+          // Специальный проигрыш и потолок применены к результату до анимации.
           if (forced === 'lose' || rigResult.result === 'lose') totalWin = 0;
-
-          // Мягкий потолок: около лимита просто ЧАЩЕ проигрыш, но если выиграл — полная сумма
-          var suppressChance = 0;
-          if (state.balance >= SOFT_CAP_START) {
-            var progress = (state.balance - SOFT_CAP_START) / (SOFT_CAP_END - SOFT_CAP_START);
-            if (progress > 1) progress = 1;
-            suppressChance = progress * 0.98;
-          }
-          var suppressed = totalWin > 0 && Math.random() < suppressChance && forced !== 'win';
 
           // Если suppress сработал — визуально показываем как проигрыш (символы уже рандомные)
           if (suppressed) {
-            // Найдём выигрышные ячейки и заменим их на случайные символы БЕЗ выигрыша
-            var hitCells = {};
-            wins2.forEach(function(w) {
-              w.path.forEach(function(p) { hitCells[p.reel + ',' + p.row] = true; });
-            });
-            Object.keys(hitCells).forEach(function(k) {
-              var parts = k.split(',');
-              var rr = parseInt(parts[0], 10);
-              var rw = parseInt(parts[1], 10);
-              var newSym = rndEmoji();
-              while (newSym === DIAMOND) newSym = rndEmoji();
-              setCell(rr, rw, newSym);
-            });
-            // Перечитываем сетку
-            var grid3 = readGrid();
-            var wins3 = dedupeWins(findAllWinsLR(grid3));
-            var totalWin2 = 0;
-            wins3.forEach(function(w){ totalWin2 += state.bet * w.payout; });
-            totalWin2 = Math.floor(totalWin2);
-
-            if (totalWin2 > 0) {
-              state.balance += totalWin2;
-              var anyBig2 = wins3.some(function(w){ return w.length >= 4; });
-              showWinVisual(wins3, totalWin2, false);
-              pushHistory(anyBig2 ? 'big' : 'win');
-            } else {
-              showMiss();
-              pushHistory('miss');
-            }
+            showMiss();
+            pushHistory('miss');
           } else if (totalWin > 0) {
             // Полная сумма — БЕЗ уменьшения
             state.balance += totalWin;
+            recordLocalWin(totalWin, wins2.reduce(function(m, w) { return Math.max(m, w.length); }, 0), false);
             var anyBig = wins2.some(function(w){ return w.length >= 4; });
             showWinVisual(wins2, totalWin, false);
             pushHistory(anyBig ? 'big' : 'win');
@@ -1881,12 +2096,23 @@ document.addEventListener('DOMContentLoaded', function() {
         if (state.bet > state.balance) {
           state.bet = Math.max(CONFIG.bet.min, Math.floor(state.balance / CONFIG.bet.step) * CONFIG.bet.step);
         }
+
+        var levelNow = 1 + Math.floor(meta.stats.spins / 25);
+        if (levelNow > (meta.stats.rewardedLevel || 1)) {
+          var levelReward = (levelNow - (meta.stats.rewardedLevel || 1)) * 500;
+          meta.stats.rewardedLevel = levelNow;
+          state.balance += levelReward;
+          showToast('Новый уровень ' + levelNow + ': +' + fmt(levelReward));
+        }
+        meta.stats.bestBalance = Math.max(Number(meta.stats.bestBalance) || 0, state.balance);
         saveStore();
         updateUI();
         sendScoreToLeaderboard();
+        continueAutoSpin();
       }).catch(function(err) {
         showError('spin promise: ' + err.message);
         state.spinning = false;
+        stopAutoSpin();
         clearMessage();
         updateUI();
       });
@@ -2003,6 +2229,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function toggleSound() {
     state.soundOn = !state.soundOn;
+    if (state.soundOn && meta.soundTheme === 'off') meta.soundTheme = 'classic';
+    if (!state.soundOn) meta.soundTheme = 'off';
     el.soundToggle.classList.toggle('off', !state.soundOn);
     el.soundToggle.textContent = state.soundOn ? '🔊' : '🔇';
     saveStore();
@@ -2177,14 +2405,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!id) { showToast('Сначала выбери игрока'); return; }
     if (!window.FB || !window.FB.ready) return;
     var ref = window.FB.doc(window.FB.db, 'scores', id);
-    window.FB.getDocs(window.FB.collection(window.FB.db, 'scores')).then(function(snap) {
+    window.FB.getDoc(ref).then(function(snap) {
       var old = 0, name = 'Игрок';
-      snap.forEach(function(d) {
-        if (d.id === id) {
-          var v = d.data();
-          if (v) { old = Number(v.maxBalance) || 0; name = v.playerName || 'Игрок'; }
-        }
-      });
+      if (snap && snap.exists && snap.exists()) {
+        var v = snap.data();
+        if (v) { old = Number(v.maxBalance) || 0; name = v.playerName || 'Игрок'; }
+      }
       var next = isSet ? Math.max(0, Math.floor(amount)) : Math.max(0, old + Math.floor(amount));
       window.FB.setDoc(ref, {
         playerId: id, playerName: name, maxBalance: next,
@@ -2436,6 +2662,42 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+
+  document.querySelectorAll('[data-feature]').forEach(function(btn) { btn.addEventListener('click', function() { showFeature(btn.getAttribute('data-feature')); }); });
+  document.getElementById('featureClose').addEventListener('click', function() { el.featureOverlay.classList.remove('show'); });
+  el.featureOverlay.addEventListener('click', function(e) { if (e.target === el.featureOverlay) el.featureOverlay.classList.remove('show'); });
+  el.featureContent.addEventListener('click', function(e) {
+    if (e.target.id === 'claimDaily') {
+      var today = localDateKey(new Date());
+      if (meta.daily.date === today) return;
+      meta.daily.streak = meta.daily.date === yesterdayKey() ? (meta.daily.streak || 0) + 1 : 1;
+      meta.daily.date = today;
+      var reward = 300 * Math.min(meta.daily.streak, 7);
+      state.balance += reward;
+      updateUI(); saveStore(); sendScoreToLeaderboard(); showToast('Ежедневный бонус: +' + fmt(reward)); showFeature('daily');
+    }
+    var achievementId = e.target.getAttribute('data-achievement');
+    if (achievementId && meta.claimed.indexOf(achievementId) === -1) {
+      var rewardAmount = Math.max(0, parseInt(e.target.getAttribute('data-reward'), 10) || 0);
+      meta.claimed.push(achievementId); state.balance += rewardAmount;
+      updateUI(); saveStore(); sendScoreToLeaderboard(); showToast('Награда: +' + fmt(rewardAmount)); showFeature('achievements');
+    }
+    var theme = e.target.getAttribute('data-theme');
+    if (theme) { meta.theme = theme; applyTheme(); saveStore(); showFeature('themes'); }
+  });
+  el.featureContent.addEventListener('change', function(e) {
+    if (e.target.id === 'soundTheme') {
+      meta.soundTheme = e.target.value;
+      state.soundOn = meta.soundTheme !== 'off';
+      el.soundToggle.classList.toggle('off', !state.soundOn);
+      el.soundToggle.textContent = state.soundOn ? '🔊' : '🔇';
+      saveStore();
+    }
+  });
+  el.autoStart.addEventListener('click', startAutoSpin);
+  el.autoStop.addEventListener('click', stopAutoSpin);
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') el.featureOverlay.classList.remove('show'); });
+
   el.spinBtn.addEventListener('click', spin);
   el.betHalf.addEventListener('click', betHalf);
   el.betX2.addEventListener('click', betX2);
@@ -2460,6 +2722,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // ---------- ИНИЦИАЛИЗАЦИЯ ----------
   initPlayerIdentity();
   try { loadStore(); } catch(e) {}
+  meta.stats.bestBalance = Math.max(Number(meta.stats.bestBalance) || 0, Number(state.balance) || 0);
+  applyTheme();
 
   try {
     for (var r = 0; r < REELS_COUNT; r++) {
@@ -2472,10 +2736,13 @@ document.addEventListener('DOMContentLoaded', function() {
   el.soundToggle.textContent = state.soundOn ? '🔊' : '🔇';
   updateJackpotUI();
   updateUI();
+  updateAutoUI();
 
   setTimeout(checkGlobalReset, 1200);
   setTimeout(sendScoreToLeaderboard, 2000);
   setTimeout(loadJackpot, 1500);
+  setTimeout(loadLastJackpotWinner, 1600);
+  setTimeout(loadJackpotHistory, 1700);
   setTimeout(syncBalanceFromCloud, 1800);
   setTimeout(checkPendingRig, 1500);
 
